@@ -504,7 +504,7 @@ export const RevisionCompare: React.FC = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-colors z-50 flex items-center gap-2"
+        className="fixed bottom-4 right-4 px-3 py-1.5 md:px-4 md:py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-colors z-50 flex items-center gap-2 text-sm md:text-base"
       >
         <svg
           className="w-5 h-5"
@@ -526,13 +526,13 @@ export const RevisionCompare: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-none md:rounded-xl shadow-2xl w-full h-full md:w-[90vw] md:h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-800">리비전 비교</h2>
+        <div className="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+          <h2 className="text-base md:text-lg font-semibold text-gray-800 dark:text-gray-100">리비전 비교</h2>
           <button
             onClick={() => setIsOpen(false)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <svg
               className="w-6 h-6"
@@ -551,15 +551,15 @@ export const RevisionCompare: React.FC = () => {
         </div>
 
         {/* Controls */}
-        <div className="p-4 border-b border-gray-200 flex items-center gap-6 flex-shrink-0 flex-wrap">
+        <div className="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 md:gap-6 flex-shrink-0 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">기준:</label>
+            <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">기준:</label>
             <select
               value={selectedRevisions[0] || ""}
               onChange={(e) =>
                 setSelectedRevisions([e.target.value, selectedRevisions[1]])
               }
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-2 md:px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs md:text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {revisions.map((rev) => (
                 <option key={rev.version} value={rev.version}>
@@ -570,13 +570,13 @@ export const RevisionCompare: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">비교:</label>
+            <label className="text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300">비교:</label>
             <select
               value={selectedRevisions[1] || ""}
               onChange={(e) =>
                 setSelectedRevisions([selectedRevisions[0], e.target.value])
               }
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-2 md:px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs md:text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {revisions.map((rev) => (
                 <option key={rev.version} value={rev.version}>
@@ -586,16 +586,16 @@ export const RevisionCompare: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
             {(["side-by-side", "overlay", "slider"] as CompareMode[]).map(
               (m) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all ${
+                  className={`px-2 md:px-3 py-1.5 text-xs md:text-sm rounded-md transition-all ${
                     mode === m
-                      ? "bg-white text-blue-600 shadow-sm font-medium"
-                      : "text-gray-600 hover:text-gray-800"
+                      ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm font-medium"
+                      : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                   }`}
                 >
                   {m === "side-by-side"
@@ -609,36 +609,36 @@ export const RevisionCompare: React.FC = () => {
           </div>
 
           {mode === "slider" && (
-            <div className="text-xs text-gray-500 ml-auto">
+            <div className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
               💡 드래그하여 비교 영역 조절
             </div>
           )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-4 min-h-0">
+        <div className="flex-1 p-2 md:p-4 min-h-0">
           {mode === "side-by-side" && (
-            <div className="flex gap-4 h-full">
-              <div className="flex-1 flex flex-col min-w-0">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 text-center flex-shrink-0">
+            <div className="flex flex-col md:flex-row gap-2 md:gap-4 h-full">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                <h3 className="text-xs md:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 md:mb-2 text-center flex-shrink-0">
                   {selectedRevisions[0]}
                 </h3>
                 <div className="flex-1 min-h-0">
                   <canvas
                     ref={leftCanvasRef}
-                    className="w-full h-full bg-gray-50 border border-gray-200 rounded-lg"
+                    className="w-full h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg"
                     style={{ display: "block" }}
                   />
                 </div>
               </div>
-              <div className="flex-1 flex flex-col min-w-0">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 text-center flex-shrink-0">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                <h3 className="text-xs md:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 md:mb-2 text-center flex-shrink-0">
                   {selectedRevisions[1]}
                 </h3>
                 <div className="flex-1 min-h-0">
                   <canvas
                     ref={rightCanvasRef}
-                    className="w-full h-full bg-gray-50 border border-gray-200 rounded-lg"
+                    className="w-full h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg"
                     style={{ display: "block" }}
                   />
                 </div>
@@ -648,18 +648,18 @@ export const RevisionCompare: React.FC = () => {
 
           {(mode === "overlay" || mode === "slider") && (
             <div className="h-full flex flex-col">
-              <div className="flex justify-between text-sm font-semibold text-gray-700 mb-2 flex-shrink-0">
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+              <div className="flex justify-between text-xs md:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
+                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded">
                   ◀ {selectedRevisions[0]}
                 </span>
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
                   {selectedRevisions[1]} ▶
                 </span>
               </div>
               <div className="flex-1 min-h-0 relative">
                 <canvas
                   ref={overlayCanvasRef}
-                  className={`w-full h-full bg-gray-50 border border-gray-200 rounded-lg ${
+                  className={`w-full h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg ${
                     mode === "slider" ? "cursor-col-resize" : ""
                   }`}
                   style={{ display: "block", touchAction: "none" }}
