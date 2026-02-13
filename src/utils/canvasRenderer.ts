@@ -12,10 +12,10 @@ import type { ImageTransform, Polygon } from "../types/metadata";
  * - 뷰포트 변환(확대/축소, 이동)을 관리
  */
 export class CanvasRenderer {
-  private ctx: CanvasRenderingContext2D;  // Canvas 2D 컨텍스트
-  private viewportZoom: number = 1;       // 뷰포트 확대/축소 비율
-  private viewportOffsetX: number = 0;    // 뷰포트 X축 오프셋
-  private viewportOffsetY: number = 0;    // 뷰포트 Y축 오프셋
+  private ctx: CanvasRenderingContext2D; // Canvas 2D 컨텍스트
+  private viewportZoom: number = 1; // 뷰포트 확대/축소 비율
+  private viewportOffsetX: number = 0; // 뷰포트 X축 오프셋
+  private viewportOffsetY: number = 0; // 뷰포트 Y축 오프셋
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -29,9 +29,9 @@ export class CanvasRenderer {
     const canvas = this.ctx.canvas;
     // 변환 상태를 저장하고 초기화
     this.ctx.save();
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);  // 단위 행렬로 초기화
-    this.ctx.clearRect(0, 0, canvas.width, canvas.height);  // 전체 영역 지우기
-    this.ctx.restore();  // 변환 상태 복원
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // 단위 행렬로 초기화
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height); // 전체 영역 지우기
+    this.ctx.restore(); // 변환 상태 복원
   }
 
   /**
@@ -56,8 +56,8 @@ export class CanvasRenderer {
     offsetY: number = 0,
     opacity: number = 1,
   ) {
-    this.ctx.save();  // 현재 상태 저장
-    this.ctx.globalAlpha = opacity;  // 투명도 설정
+    this.ctx.save(); // 현재 상태 저장
+    this.ctx.globalAlpha = opacity; // 투명도 설정
 
     // 이미지 중앙을 기준으로 그릴 위치 계산
     // centerX, centerY는 이미지 중심이 위치할 지점
@@ -67,13 +67,13 @@ export class CanvasRenderer {
     // 이미지 그리기
     this.ctx.drawImage(
       img,
-      drawX,                  // 그릴 X 위치
-      drawY,                  // 그릴 Y 위치
-      img.width * scale,      // 그릴 너비
-      img.height * scale,     // 그릴 높이
+      drawX, // 그릴 X 위치
+      drawY, // 그릴 Y 위치
+      img.width * scale, // 그릴 너비
+      img.height * scale, // 그릴 높이
     );
 
-    this.ctx.restore();  // 상태 복원
+    this.ctx.restore(); // 상태 복원
   }
 
   /**
@@ -99,49 +99,61 @@ export class CanvasRenderer {
     // 폴리곤은 최소 3개의 점이 필요
     if (vertices.length < 3) return;
 
-    this.ctx.save();  // 현재 상태 저장
+    this.ctx.save(); // 현재 상태 저장
+
+    // viewport transform을 무시하고 절대 좌표로 그리기 위해 transform 초기화
+    // DPR은 유지해야 함
+    const dpr = window.devicePixelRatio || 1;
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.scale(dpr, dpr);
+
+    // viewport offset과 zoom을 수동으로 적용하여 올바른 위치 계산
+    const viewportX = this.viewportOffsetX;
+    const viewportY = this.viewportOffsetY;
+    const zoom = this.viewportZoom;
 
     // === 폴리곤 경로 생성 ===
-    // 이미지 좌표계를 캔버스 좌표계로 변환
+    // 이미지 좌표계를 캔버스 좌표계로 변환 (viewport 적용)
     this.ctx.beginPath();
     const firstVertex = vertices[0];
     // 첫 번째 점으로 이동
     this.ctx.moveTo(
-      imageX + firstVertex[0] * imageScale,
-      imageY + firstVertex[1] * imageScale,
+      viewportX + (imageX + firstVertex[0] * imageScale) * zoom,
+      viewportY + (imageY + firstVertex[1] * imageScale) * zoom,
     );
 
     // 나머지 점들을 연결
     for (let i = 1; i < vertices.length; i++) {
       const vertex = vertices[i];
       this.ctx.lineTo(
-        imageX + vertex[0] * imageScale,
-        imageY + vertex[1] * imageScale,
+        viewportX + (imageX + vertex[0] * imageScale) * zoom,
+        viewportY + (imageY + vertex[1] * imageScale) * zoom,
       );
     }
-    this.ctx.closePath();  // 경로를 닫아 폴리곤 완성
+    this.ctx.closePath(); // 경로를 닫아 폴리곤 완성
 
     // === 폴리곤 채우기 ===
     // 호버 시 노란색, 평상시 파란색
     this.ctx.fillStyle = isHovered
-      ? "rgba(255, 193, 7, 0.35)"    // 노란색 (호버)
-      : "rgba(59, 130, 246, 0.2)";    // 파란색 (평상시)
+      ? "rgba(255, 193, 7, 0.35)" // 노란색 (호버)
+      : "rgba(59, 130, 246, 0.2)"; // 파란색 (평상시)
     this.ctx.fill();
 
     // === 폴리곤 테두리 ===
     this.ctx.strokeStyle = isHovered
-      ? "rgba(255, 193, 7, 1)"        // 진한 노란색 (호버)
-      : "rgba(59, 130, 246, 0.7)";    // 파란색 (평상시)
-    this.ctx.lineWidth = isHovered ? 3 : 2;  // 호버 시 더 두껍게
+      ? "rgba(255, 193, 7, 1)" // 진한 노란색 (호버)
+      : "rgba(59, 130, 246, 0.7)"; // 파란색 (평상시)
+    this.ctx.lineWidth = isHovered ? 3 : 2; // 호버 시 더 두껍게
     this.ctx.stroke();
 
     // === 라벨 그리기 (옵션) ===
     if (label) {
-      // 폴리곤 중심점 계산 (모든 꼭짓점의 평균)
-      let cx = 0, cy = 0;
+      // 폴리곤 중심점 계산 (모든 꼭짓점의 평균, viewport 적용)
+      let cx = 0,
+        cy = 0;
       for (const v of vertices) {
-        cx += imageX + v[0] * imageScale;
-        cy += imageY + v[1] * imageScale;
+        cx += viewportX + (imageX + v[0] * imageScale) * zoom;
+        cy += viewportY + (imageY + v[1] * imageScale) * zoom;
       }
       cx /= vertices.length;
       cy /= vertices.length;
@@ -165,7 +177,7 @@ export class CanvasRenderer {
         cy - bgHeight / 2,
         bgWidth,
         bgHeight,
-        4,  // 모서리 반경
+        4, // 모서리 반경
       );
       this.ctx.fill();
 
@@ -176,7 +188,7 @@ export class CanvasRenderer {
       this.ctx.fillText(label, cx, cy);
     }
 
-    this.ctx.restore();  // 상태 복원
+    this.ctx.restore(); // 상태 복원
   }
 
   /**
@@ -219,15 +231,17 @@ export class CanvasRenderer {
     // 홀수번 교차하면 내부, 짝수번 교차하면 외부
     let inside = false;
     for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-      const xi = vertices[i][0], yi = vertices[i][1];
-      const xj = vertices[j][0], yj = vertices[j][1];
+      const xi = vertices[i][0],
+        yi = vertices[i][1];
+      const xj = vertices[j][0],
+        yj = vertices[j][1];
 
       // 현재 꼭짓점 쌍이 수평선과 교차하는지 확인
       if (
-        yi > imgY !== yj > imgY &&  // y 범위 체크
-        imgX < ((xj - xi) * (imgY - yi)) / (yj - yi) + xi  // 교차점 x 좌표 계산
+        yi > imgY !== yj > imgY && // y 범위 체크
+        imgX < ((xj - xi) * (imgY - yi)) / (yj - yi) + xi // 교차점 x 좌표 계산
       ) {
-        inside = !inside;  // 교차할 때마다 토글
+        inside = !inside; // 교차할 때마다 토글
       }
     }
 
@@ -237,25 +251,43 @@ export class CanvasRenderer {
   /**
    * 뷰포트 설정
    * - 확대/축소 및 이동을 Canvas 변환 행렬에 적용
+   * - DPR(Device Pixel Ratio)을 유지하면서 viewport 적용
    */
   setViewport(offsetX: number, offsetY: number, zoom: number) {
     this.viewportOffsetX = offsetX;
     this.viewportOffsetY = offsetY;
     this.viewportZoom = zoom;
-    // Canvas 변환 행렬 설정 (확대/축소 및 이동)
-    this.ctx.setTransform(zoom, 0, 0, zoom, offsetX, offsetY);
+
+    // DPR 가져오기
+    const dpr = window.devicePixelRatio || 1;
+
+    // Canvas 변환 행렬 설정
+    // 1. 초기화
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // 2. DPR 적용 (고해상도 디스플레이 대응)
+    this.ctx.scale(dpr, dpr);
+    // 3. 뷰포트 이동 적용
+    this.ctx.translate(offsetX, offsetY);
+    // 4. 뷰포트 확대/축소 적용
+    this.ctx.scale(zoom, zoom);
   }
 
   /**
    * 뷰포트 초기화
    * - 확대/축소 및 이동을 기본 상태로 되돌림
+   * - DPR은 유지
    */
   resetViewport() {
     this.viewportOffsetX = 0;
     this.viewportOffsetY = 0;
     this.viewportZoom = 1;
-    // 단위 행렬로 초기화
+
+    // DPR 가져오기
+    const dpr = window.devicePixelRatio || 1;
+
+    // DPR만 적용된 상태로 초기화
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.scale(dpr, dpr);
   }
 
   /**
