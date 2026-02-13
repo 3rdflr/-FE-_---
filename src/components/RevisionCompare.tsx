@@ -51,15 +51,43 @@ export const RevisionCompare: React.FC = () => {
   const { getAvailableRevisions, loadImage } = useDrawingStore();
   const revisions = getAvailableRevisions();
 
-  // 기본 선택
+  // 모달 열릴 때 캐시 클리어 및 상태 초기화
   useEffect(() => {
-    if (revisions.length >= 2 && !selectedRevisions[0]) {
+    if (isOpen) {
+      // Offscreen Canvas 캐시 클리어 (중요!)
+      prerenderedRef.current = {
+        canvas1: null,
+        canvas2: null,
+        scale: 1,
+        centerX: 0,
+        centerY: 0,
+        img1Width: 0,
+        img1Height: 0,
+        img2Width: 0,
+        img2Height: 0,
+      };
+
+      // 리비전 선택 초기화
+      if (revisions.length >= 2) {
+        setSelectedRevisions([
+          revisions[0].version,
+          revisions[revisions.length - 1].version,
+        ]);
+      }
+
+      setSliderPosition(50);
+    }
+  }, [isOpen]);
+
+  // revisions 변경 시 선택 업데이트
+  useEffect(() => {
+    if (revisions.length >= 2) {
       setSelectedRevisions([
         revisions[0].version,
         revisions[revisions.length - 1].version,
       ]);
     }
-  }, [revisions, selectedRevisions]);
+  }, [revisions.length]);
 
   // Offscreen Canvas에 이미지 미리 렌더링
   const prerenderImages = useCallback(
@@ -79,6 +107,10 @@ export const RevisionCompare: React.FC = () => {
         const centerX = width / 2;
         const centerY = height / 2;
 
+        // 동일한 렌더링 크기 (두 이미지 모두 같은 크기로 표시)
+        const renderWidth = maxWidth * scale;
+        const renderHeight = maxHeight * scale;
+
         // Offscreen Canvas 생성 및 이미지 렌더링
         const dpr = window.devicePixelRatio || 1;
 
@@ -87,10 +119,10 @@ export const RevisionCompare: React.FC = () => {
         ctx1.scale(dpr, dpr);
         ctx1.drawImage(
           img1,
-          centerX - (img1.width * scale) / 2,
-          centerY - (img1.height * scale) / 2,
-          img1.width * scale,
-          img1.height * scale,
+          centerX - renderWidth / 2,
+          centerY - renderHeight / 2,
+          renderWidth,
+          renderHeight,
         );
 
         const offscreen2 = new OffscreenCanvas(width * dpr, height * dpr);
@@ -98,10 +130,10 @@ export const RevisionCompare: React.FC = () => {
         ctx2.scale(dpr, dpr);
         ctx2.drawImage(
           img2,
-          centerX - (img2.width * scale) / 2,
-          centerY - (img2.height * scale) / 2,
-          img2.width * scale,
-          img2.height * scale,
+          centerX - renderWidth / 2,
+          centerY - renderHeight / 2,
+          renderWidth,
+          renderHeight,
         );
 
         prerenderedRef.current = {
@@ -285,36 +317,48 @@ export const RevisionCompare: React.FC = () => {
           loadImage(rev2.image),
         ]);
 
+        // 두 이미지 중 큰 것을 기준으로 동일한 스케일 계산
+        const maxWidth = Math.max(img1.width, img2.width);
+        const maxHeight = Math.max(img1.height, img2.height);
+
         const scale1 = Math.min(
-          (leftSize.width * 0.85) / img1.width,
-          (leftSize.height * 0.85) / img1.height,
+          (leftSize.width * 0.85) / maxWidth,
+          (leftSize.height * 0.85) / maxHeight,
         );
-        const x1 = (leftSize.width - img1.width * scale1) / 2;
-        const y1 = (leftSize.height - img1.height * scale1) / 2;
+        const scale2 = Math.min(
+          (rightSize.width * 0.85) / maxWidth,
+          (rightSize.height * 0.85) / maxHeight,
+        );
+
+        // 동일한 스케일 사용 (둘 중 작은 값)
+        const uniformScale = Math.min(scale1, scale2);
+
+        // 동일한 렌더링 크기 (두 이미지 모두 같은 크기로 표시)
+        const renderWidth = maxWidth * uniformScale;
+        const renderHeight = maxHeight * uniformScale;
+
+        const x1 = (leftSize.width - renderWidth) / 2;
+        const y1 = (leftSize.height - renderHeight) / 2;
 
         leftCtx.clearRect(0, 0, leftSize.width, leftSize.height);
         leftCtx.drawImage(
           img1,
           x1,
           y1,
-          img1.width * scale1,
-          img1.height * scale1,
+          renderWidth,
+          renderHeight,
         );
 
-        const scale2 = Math.min(
-          (rightSize.width * 0.85) / img2.width,
-          (rightSize.height * 0.85) / img2.height,
-        );
-        const x2 = (rightSize.width - img2.width * scale2) / 2;
-        const y2 = (rightSize.height - img2.height * scale2) / 2;
+        const x2 = (rightSize.width - renderWidth) / 2;
+        const y2 = (rightSize.height - renderHeight) / 2;
 
         rightCtx.clearRect(0, 0, rightSize.width, rightSize.height);
         rightCtx.drawImage(
           img2,
           x2,
           y2,
-          img2.width * scale2,
-          img2.height * scale2,
+          renderWidth,
+          renderHeight,
         );
       } catch (error) {
         console.error("Failed to render comparison:", error);
@@ -323,7 +367,7 @@ export const RevisionCompare: React.FC = () => {
     [loadImage, setupCanvas],
   );
 
-  // 초기 렌더링 및 모드 변경 시
+  // 초기 렌더링 및 모드/선택 변경 시
   useEffect(() => {
     if (!isOpen || !selectedRevisions[0] || !selectedRevisions[1]) return;
 
@@ -332,14 +376,19 @@ export const RevisionCompare: React.FC = () => {
 
     if (!rev1 || !rev2) return;
 
+    // 모달 열릴 때 DOM이 준비될 시간을 충분히 줌
     const timer = setTimeout(async () => {
       if (mode === "side-by-side") {
-        renderSideBySide(rev1, rev2);
+        await renderSideBySide(rev1, rev2);
       } else {
         const canvas = overlayCanvasRef.current;
         if (!canvas) return;
 
         const { width, height } = setupCanvas(canvas);
+
+        // 캔버스 크기가 유효한지 확인
+        if (width <= 0 || height <= 0) return;
+
         const success = await prerenderImages(rev1, rev2, width, height);
 
         if (success) {
@@ -350,7 +399,7 @@ export const RevisionCompare: React.FC = () => {
           }
         }
       }
-    }, 100);
+    }, 150); // 150ms로 증가
 
     return () => clearTimeout(timer);
   }, [
@@ -363,6 +412,7 @@ export const RevisionCompare: React.FC = () => {
     renderSideBySide,
     renderSlider,
     renderOverlay,
+    sliderPosition,
   ]);
 
   // 슬라이더 위치 변경 시 (RAF 사용)
@@ -559,7 +609,7 @@ export const RevisionCompare: React.FC = () => {
           </div>
 
           {mode === "slider" && (
-            <div className="text-sm text-gray-700 ml-auto">
+            <div className="text-xs text-gray-500 ml-auto">
               💡 드래그하여 비교 영역 조절
             </div>
           )}
