@@ -28,20 +28,20 @@ export const LayerPanel: React.FC = () => {
   const visibleLayers = layers.filter((l) => l.visible);
 
   return (
-    <div className="p-4 border-b border-gray-200">
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-800">레이어 오버레이</h3>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">레이어 오버레이</h3>
         {visibleLayers.length > 0 && (
           <button
             onClick={resetAllLayerOffsets}
-            className="text-xs text-blue-600 hover:text-blue-800"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
             title="모든 레이어 위치 리셋"
           >
             모두 정렬
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-500 mb-3">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
         다른 공종을 겹쳐서 확인하세요
       </p>
 
@@ -60,8 +60,8 @@ export const LayerPanel: React.FC = () => {
               key={discipline}
               className={`rounded-lg border transition-all ${
                 isSelected
-                  ? "border-blue-400 bg-blue-50"
-                  : "border-transparent hover:bg-gray-50"
+                  ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                  : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-700"
               }`}
             >
               {/* 메인 토글 */}
@@ -74,7 +74,7 @@ export const LayerPanel: React.FC = () => {
                 />
                 <span
                   className={`flex-1 text-sm cursor-pointer ${
-                    isVisible ? "text-gray-800 font-medium" : "text-gray-500"
+                    isVisible ? "text-gray-800 dark:text-gray-200 font-medium" : "text-gray-500 dark:text-gray-400"
                   }`}
                   onClick={() => {
                     if (isVisible) {
@@ -92,8 +92,8 @@ export const LayerPanel: React.FC = () => {
                       onClick={() => toggleLayerLock(discipline)}
                       className={`p-1 rounded transition-colors ${
                         isLocked
-                          ? "text-red-500 bg-red-50"
-                          : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                          ? "text-red-500 bg-red-50 dark:bg-red-900/30"
+                          : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
                       }`}
                       title={isLocked ? "잠금 해제" : "레이어 잠금"}
                     >
@@ -133,7 +133,7 @@ export const LayerPanel: React.FC = () => {
                 <div className="px-2 pb-2 space-y-2">
                   {/* 투명도 슬라이더 */}
                   <div className="flex items-center gap-2 ml-6">
-                    <span className="text-xs text-gray-500 w-12">투명도</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 w-12">투명도</span>
                     <input
                       type="range"
                       min="0"
@@ -142,9 +142,9 @@ export const LayerPanel: React.FC = () => {
                       onChange={(e) =>
                         setLayerOpacity(discipline, Number(e.target.value))
                       }
-                      className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                      className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <span className="text-xs text-gray-500 w-8 text-right">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 w-8 text-right">
                       {opacity}%
                     </span>
                   </div>
@@ -153,14 +153,14 @@ export const LayerPanel: React.FC = () => {
                   <div className="flex items-center gap-1 ml-6">
                     <button
                       onClick={() => sendLayerToBack(discipline)}
-                      className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                       title="맨 뒤로"
                     >
                       ↓ 뒤로
                     </button>
                     <button
                       onClick={() => bringLayerToFront(discipline)}
-                      className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                      className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                       title="맨 앞으로"
                     >
                       ↑ 앞으로
@@ -168,7 +168,7 @@ export const LayerPanel: React.FC = () => {
                     {hasOffset && (
                       <button
                         onClick={() => resetLayerOffset(discipline)}
-                        className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                        className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
                         title="위치 리셋"
                       >
                         ⟲ 정렬
@@ -178,7 +178,7 @@ export const LayerPanel: React.FC = () => {
 
                   {/* 오프셋 표시 */}
                   {hasOffset && (
-                    <div className="ml-6 text-xs text-gray-400">
+                    <div className="ml-6 text-xs text-gray-400 dark:text-gray-500">
                       오프셋: ({Math.round(layer.offsetX)},{" "}
                       {Math.round(layer.offsetY)})
                     </div>
@@ -191,18 +191,18 @@ export const LayerPanel: React.FC = () => {
       </div>
 
       {availableDisciplines.length === 0 && (
-        <p className="text-xs text-gray-400 italic">
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic">
           오버레이할 공종이 없습니다
         </p>
       )}
 
       {/* 사용 안내 */}
       {visibleLayers.length > 0 && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-600">
+        <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
             💡 <strong>Tip:</strong> 레이어를 클릭하여 선택 후,
             <br />
-            캔버스에서 <kbd className="px-1 bg-gray-200 rounded">Shift</kbd> +
+            캔버스에서 <kbd className="px-1 bg-gray-200 dark:bg-gray-600 rounded">Shift</kbd> +
             드래그로 이동
           </p>
         </div>

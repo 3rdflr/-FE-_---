@@ -12,8 +12,8 @@ export const SpaceTree: React.FC = () => {
   const siteMap = metadata.drawings["00"];
 
   return (
-    <div className="p-4 border-b border-gray-200">
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">공간 탐색</h3>
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">공간 탐색</h3>
 
       {/* 전체 배치도 */}
       <div
@@ -22,8 +22,8 @@ export const SpaceTree: React.FC = () => {
           flex items-center text-sm
           ${
             currentDrawingId === "00"
-              ? "bg-blue-50 font-semibold text-blue-700 border border-blue-200"
-              : "hover:bg-gray-50 text-gray-700 border border-transparent"
+              ? "bg-blue-50 dark:bg-blue-900/30 font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
+              : "hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-transparent"
           }
         `}
         onClick={() => selectDrawing("00")}
@@ -45,7 +45,7 @@ export const SpaceTree: React.FC = () => {
       </div>
 
       {/* 건물 목록 */}
-      <div className="ml-4 mt-2 border-l-2 border-gray-200 pl-2">
+      <div className="ml-4 mt-2 border-l-2 border-gray-200 dark:border-gray-600 pl-2">
         {buildings.map((building) => (
           <div
             key={building.id}
@@ -54,8 +54,8 @@ export const SpaceTree: React.FC = () => {
               flex items-center text-sm
               ${
                 currentDrawingId === building.id
-                  ? "bg-blue-50 font-semibold text-blue-700 border border-blue-200"
-                  : "hover:bg-gray-50 text-gray-700 border border-transparent"
+                  ? "bg-blue-50 dark:bg-blue-900/30 font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
+                  : "hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-transparent"
               }
             `}
             onClick={() => selectDrawing(building.id)}

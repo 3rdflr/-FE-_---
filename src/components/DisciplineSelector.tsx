@@ -9,56 +9,47 @@ import React from "react";
 import { useDrawingStore } from "../store/useDrawingStore";
 
 export const DisciplineSelector: React.FC = () => {
-  // 스토어에서 필요한 상태와 함수 가져오기
   const {
-    getCurrentDrawing,              // 현재 도면 데이터 가져오기
-    currentDiscipline,               // 현재 선택된 공종
-    currentRegion,                   // 현재 선택된 영역
-    selectDiscipline,                // 공종 선택 함수
-    selectRegion,                    // 영역 선택 함수
-    getCurrentDisciplineData,        // 현재 공종 데이터 가져오기
+    getCurrentDrawing,
+    currentDiscipline,
+    currentRegion,
+    selectDiscipline,
+    selectRegion,
+    getCurrentDisciplineData,
   } = useDrawingStore();
 
   const drawing = getCurrentDrawing();
   const disciplineData = getCurrentDisciplineData();
 
-  // 도면이나 공종 정보가 없으면 아무것도 표시하지 않음
   if (!drawing || !drawing.disciplines) return null;
 
-  // 현재 도면에서 사용 가능한 공종 목록
   const disciplines = Object.keys(drawing.disciplines);
-  // 현재 공종에 영역(Region)이 있는지 확인
   const hasRegions = disciplineData?.regions;
-  // 영역 목록 추출
   const regions = hasRegions ? Object.keys(disciplineData.regions!) : [];
 
   /**
-   * 공종별 색상 테마
-   * - 각 공종마다 고유한 색상으로 시각적 구분
-   * - Tailwind CSS 클래스 사용
+   * 공종별 색상 테마 (라이트 + 다크)
    */
   const disciplineColors: Record<string, string> = {
-    건축: "bg-blue-100 text-blue-700 border-blue-300",       // 파란색
-    구조: "bg-orange-100 text-orange-700 border-orange-300",  // 주황색
-    공조설비: "bg-green-100 text-green-700 border-green-300",   // 녹색
-    배관설비: "bg-purple-100 text-purple-700 border-purple-300", // 보라색
-    소방: "bg-red-100 text-red-700 border-red-300",          // 빨간색
-    설비: "bg-teal-100 text-teal-700 border-teal-300",       // 청록색
-    조경: "bg-emerald-100 text-emerald-700 border-emerald-300", // 에메랄드색
+    건축: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-600",
+    구조: "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-600",
+    공조설비: "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-600",
+    배관설비: "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-600",
+    소방: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-600",
+    설비: "bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-600",
+    조경: "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-600",
   };
 
   return (
-    <div className="p-4 border-b border-gray-200">
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">공종 선택</h3>
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">공종 선택</h3>
 
-      {/* 공종 버튼 목록 */}
       <div className="flex flex-wrap gap-2">
         {disciplines.map((discipline) => {
-          const isActive = currentDiscipline === discipline;  // 현재 선택된 공종인지 확인
-          // 공종에 맞는 색상 클래스 가져오기 (없으면 회색)
+          const isActive = currentDiscipline === discipline;
           const colorClass =
             disciplineColors[discipline] ||
-            "bg-gray-100 text-gray-700 border-gray-300";
+            "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600";
 
           return (
             <button
@@ -68,8 +59,8 @@ export const DisciplineSelector: React.FC = () => {
                 px-3 py-1.5 text-xs font-medium rounded-full border transition-all
                 ${
                   isActive
-                    ? colorClass + " ring-2 ring-offset-1"  // 활성 상태: 색상 + 링 효과
-                    : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"  // 비활성 상태: 회색
+                    ? colorClass + " ring-2 ring-offset-1 dark:ring-offset-gray-800"
+                    : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }
               `}
             >
@@ -79,10 +70,9 @@ export const DisciplineSelector: React.FC = () => {
         })}
       </div>
 
-      {/* 영역 선택 섹션 (영역이 있는 경우에만 표시) */}
       {hasRegions && regions.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <h4 className="text-xs font-semibold text-gray-600 mb-2">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
             영역 선택
           </h4>
           <div className="flex gap-2">
@@ -93,8 +83,8 @@ export const DisciplineSelector: React.FC = () => {
                   px-4 py-2 text-sm rounded-lg border-2 transition-all font-medium
                   ${
                     currentRegion === region
-                      ? "bg-orange-50 text-orange-700 border-orange-400"  // 선택된 영역
-                      : "bg-white text-gray-600 border-gray-200 hover:border-orange-300"  // 선택되지 않은 영역
+                      ? "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-400 dark:border-orange-600"
+                      : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500"
                   }
                 `}
                 onClick={() => selectRegion(region)}
