@@ -453,6 +453,41 @@ const handleTouchEnd = (e: TouchEvent) => {
 
 **이벤트 등록:** `passive: false`로 등록하여 `preventDefault()` 동작 보장
 
+### 9. 캔버스 리사이즈 렌더링 버그 수정 🆕
+
+**문제:**
+
+Chrome DevTools에서 모바일 모드로 전환하거나 화면 캡처 시, 캔버스 이미지가 사라지고 드래그/클릭 시에만 다시 나타나는 현상.
+
+**원인 분석:**
+
+1. `resizeCanvas()`가 `canvas.width`/`canvas.height`를 설정하면 Canvas API 특성상 **캔버스 내용이 전부 삭제**됨
+2. `handleResize` → `resizeCanvas()` → `setCanvasSize()`로 스토어의 `canvasSize`만 업데이트
+3. 렌더링 useEffect의 의존성 배열에 `canvasSize`가 없어서 **재렌더링이 트리거되지 않음**
+4. 사용자가 드래그/클릭 → `viewport` 변경 → 렌더링 useEffect 실행 → 이미지 다시 나타남
+
+**해결:**
+
+로컬 `renderTrigger` 카운터 state를 도입하여 리사이즈 시 렌더링을 명시적으로 트리거.
+
+> **`canvasSize`를 의존성에 직접 넣지 않은 이유:** `canvasSize`는 Zustand 스토어의 객체로, 의존성에 추가하면 특정 기기(iPhone 12 Pro 등)에서 리사이즈 → 렌더링 → 레이아웃 재계산이 연쇄적으로 일어나며 서브픽셀 렌더링 아티팩트(왼쪽 하얀 줄)가 발생. 단순한 숫자 카운터는 이 부작용 없이 렌더링만 트리거.
+
+```typescript
+// 리사이즈 후 재렌더링 트리거
+const [renderTrigger, setRenderTrigger] = useState(0);
+
+const handleResize = () => {
+  const { width, height } = resizeCanvas(canvas);
+  setCanvasSize(width, height);
+  setRenderTrigger((prev) => prev + 1); // 렌더링 useEffect 재실행
+};
+
+// 렌더링 useEffect 의존성에 renderTrigger 추가
+useEffect(() => { /* render logic */ }, [
+  ..., renderTrigger
+]);
+```
+
 ### 시간이 더 주어진다면
 
 **단기 개선 (1주):**
@@ -479,3 +514,4 @@ const handleTouchEnd = (e: TouchEvent) => {
 | 2025-02-13 | 다크 모드 구현 (Tailwind dark: 클래스, localStorage 저장, OS 감지) |
 | 2025-02-13 | 반응형 디자인 (모바일 상단 드롭다운, 핵심 정보 미니바, 풀스크린 모달) |
 | 2025-02-13 | 터치 인터랙션 (싱글 터치 팬, 핀치 줌, 탭/드래그 구분 hotspot 클릭) |
+| 2025-02-13 | 캔버스 리사이즈 렌더링 버그 수정 (renderTrigger 카운터 패턴) |
