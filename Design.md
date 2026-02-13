@@ -24,23 +24,57 @@
 └── 주차장 (03)
 ```
 
-### 특수 케이스 분석
+### 데이터 패턴 분류
 
-**1. 101동 구조 - Region 분할**
+metadata.json의 불규칙한 구조를 3가지 패턴으로 정규화했습니다:
 
-- 하나의 공종이 A/B 두 영역으로 분할
-- 각 영역이 독립적인 리비전 이력 보유
-- UI에서 Region 탭으로 해결
+**1. Standard Pattern (표준 패턴)**
+```typescript
+{
+  imageTransform: {...},
+  polygon: [...],
+  revisions: [REV0, REV1, ...]
+}
+```
+- 대부분의 공종이 이 패턴을 따름
+- 공종 레벨의 polygon과 imageTransform 보유
+- 모든 리비전이 동일한 polygon 공유
+- **예시**: 101동 건축, 공조설비, 배관설비 등
 
-**2. 주민공동시설 건축 - 리비전별 polygon 변경**
+**2. Region Partitioned Pattern (영역 분할 패턴)**
+```typescript
+{
+  imageTransform: {...},
+  regions: {
+    A: { polygon: [...], revisions: [REV1A, REV2A] },
+    B: { polygon: [...], revisions: [REV1B, REV2B] }
+  }
+}
+```
+- 하나의 공종이 여러 영역으로 분할
+- 각 영역이 독립적인 polygon과 리비전 이력 보유
+- UI에서 Region 탭으로 전환
+- **예시**: 101동 구조 (Region A, B)
 
-- 각 리비전마다 다른 polygon 좌표
+**3. Independent Revision Pattern (독립 리비전 패턴)**
+```typescript
+{
+  revisions: [
+    { imageTransform: {...}, polygon: [...] },  // REV0
+    { imageTransform: {...}, polygon: [...] }   // REV1
+  ]
+}
+```
+- 공종 레벨의 polygon 없음
+- 각 리비전마다 독립적인 imageTransform과 polygon 보유
 - 리비전 선택 시 해당 polygon 우선 적용
+- **예시**: 주민공동시설 건축 (REV0~3 각각 다른 polygon)
 
-**3. relativeTo 체인**
+**4. relativeTo 체인**
 
 - 레이어 이미지가 기준 도면에 상대적으로 정렬
 - 예: 공조설비 → 건축.png 기준
+- 현재는 수동 드래그로 미세 조정 가능
 
 ### 더 나은 데이터 표현 방법
 
@@ -151,6 +185,40 @@
 
 ## 기술 선택
 
+### 핵심 라이브러리 선정
+
+| 기술 | 선택 이유 (Why?) |
+|-----|----------------|
+| **React 18** | 컴포넌트 기반 아키텍처로 복잡한 UI를 모듈화하여 관리. Concurrent Features로 렌더링 성능 최적화 |
+| **TypeScript** | metadata.json의 복잡한 계층 구조(3가지 패턴)를 타입 시스템으로 안전하게 관리. 런타임 에러 사전 방지 |
+| **Vite** | 빠른 HMR과 개발 서버로 생산성 향상. esbuild 기반으로 빌드 속도 우수 |
+| **Tailwind CSS** | 유틸리티 우선 방식으로 빠른 프로토타이핑. 일관된 디자인 시스템. PurgeCSS로 번들 최적화 |
+| **Zustand** | Redux보다 가볍고 보일러플레이트가 적음. TypeScript 친화적. 선택적 구독으로 성능 최적화 |
+| **Canvas API** | 대용량 도면 이미지 처리에 최적. 복잡한 transform 연산 처리. 줌/팬 구현 용이 |
+
+### 라이브러리 미선택 이유
+
+| 라이브러리 | 검토 결과 | 미선택 이유 |
+|-----------|---------|-----------|
+| **react-router-dom** | 검토함 | 단일 페이지 앱으로 충분. URL 라우팅의 복잡성 대비 이득 적음. Zustand 상태만으로 뷰 관리 가능 |
+| **react-konva** | 검토함 | 추가 추상화 레이어 불필요. 순수 Canvas API로 더 세밀한 제어 가능. 번들 크기 증가 방지 |
+| **framer-motion** | 검토함 | 과제 범위에서 복잡한 애니메이션 불필요. CSS transition으로 충분. 번들 크기 고려 |
+| **Redux** | 검토함 | 보일러플레이트 과다. Zustand로 동일한 기능을 더 간결하게 구현 가능 |
+
+### URL 라우팅 미적용 이유
+
+**검토 내용:**
+- 다른 프로젝트: `/building/:drawingId/:discipline` 형태로 URL 기반 상태 관리
+- 장점: 새로고침/링크 공유 시 상태 유지
+
+**미적용 결정:**
+1. **단일 사용자 세션**: 도면 뷰어는 동시에 여러 도면을 탭으로 열지 않음. 링크 공유 요구사항 없음
+2. **상태 복잡도**: Discipline뿐만 아니라 Region, Revision, Layer Offsets까지 관리. URL에 모두 인코딩하면 과도하게 복잡
+3. **Zustand 충분**: 전역 상태로 뷰 관리가 직관적이고 간단함
+4. **브라우저 히스토리**: 뒤로가기 동작이 도면 뷰어에서 직관적이지 않을 수 있음 (사이드바 선택이 더 자연스러움)
+
+**개선 여지**: 향후 다중 사용자 협업 기능 추가 시 URL 라우팅 도입 검토
+
 ### 상태 관리: Zustand
 
 **선택 기준:**
@@ -257,6 +325,44 @@ const imgY = (realY - imageY) / imageScale;
 - 별도의 setupCanvas 함수로 DPR 처리
 - 렌더링 전 setTimeout으로 DOM 준비 대기
 
+### 5. 리비전 비교 시 이미지 scale 불일치 🆕
+
+**문제:**
+
+- Region A의 REV1A와 REV2A가 같은 물리적 영역을 나타내지만, 이미지 파일의 해상도(픽셀 크기)가 다른 경우 발생
+- 예: REV1A는 1000×800px, REV2A는 2000×1600px (같은 영역을 더 높은 해상도로 스캔)
+- 기존 코드에서는 각 이미지의 원본 크기(`img.width * scale`)로 렌더링하여 화면에서 REV2A가 2배 크게 표시됨
+- **실제로는 같은 영역이므로 동일한 크기로 비교**되어야 함
+
+**해결:**
+
+```typescript
+// 두 이미지 중 큰 이미지를 기준으로 공통 렌더링 크기 계산
+const maxWidth = Math.max(img1.width, img2.width);
+const maxHeight = Math.max(img1.height, img2.height);
+const scale = Math.min(
+  (width * 0.85) / maxWidth,
+  (height * 0.85) / maxHeight,
+);
+
+// 동일한 렌더링 크기 적용 (원본 크기가 달라도 화면에서 같은 크기로)
+const renderWidth = maxWidth * scale;
+const renderHeight = maxHeight * scale;
+
+// 두 이미지 모두 renderWidth × renderHeight 영역에 맞춰 그리기
+ctx.drawImage(img1, x, y, renderWidth, renderHeight);
+ctx.drawImage(img2, x, y, renderWidth, renderHeight);
+```
+
+**적용 범위:**
+- Overlay 모드: `prerenderImages()` 함수
+- Slider 모드: `prerenderImages()` 함수
+- Side-by-side 모드: `renderSideBySide()` 함수
+
+**결과:**
+- 원본 이미지 해상도가 달라도 화면에서 정확히 같은 배율로 비교 가능
+- 물리적으로 동일한 영역을 나타내는 리비전들의 정확한 비교 가능
+
 ### 시간이 더 주어진다면
 
 **단기 개선 (1주):**
@@ -271,4 +377,12 @@ const imgY = (realY - imageY) / imageScale;
 
 ---
 
-**작성일**: 2025년 2월 12일
+---
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|-----|-----|
+| 2025-02-12 | 초기 문서 작성, 데이터 구조 분석, 기본 기술 스택 결정 |
+| 2025-02-13 | 데이터 패턴 3가지 분류 추가, 핵심 라이브러리 선정 이유 표 추가, URL 라우팅 미적용 근거 작성 |
+| 2025-02-13 | 리비전 비교 시 이미지 scale 불일치 문제 해결 과정 추가 |
