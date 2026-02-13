@@ -363,15 +363,140 @@ ctx.drawImage(img2, x, y, renderWidth, renderHeight);
 - 원본 이미지 해상도가 달라도 화면에서 정확히 같은 배율로 비교 가능
 - 물리적으로 동일한 영역을 나타내는 리비전들의 정확한 비교 가능
 
+### 6. 다크 모드 구현 🆕
+
+**접근:**
+
+- Tailwind CSS의 `darkMode: "class"` 전략 사용
+- `<html>` 태그의 class 토글(`light` / `dark`)로 전체 테마 전환
+- `localStorage`에 사용자 선호 저장, OS 기본 설정(`prefers-color-scheme`) 폴백
+
+**색상 매핑 규칙:**
+
+| 라이트 | 다크 |
+|--------|------|
+| `bg-white` | `dark:bg-gray-800` |
+| `bg-gray-100` | `dark:bg-gray-900` |
+| `bg-gray-50` | `dark:bg-gray-700` |
+| `text-gray-800` | `dark:text-gray-100` |
+| `text-gray-600` | `dark:text-gray-400` |
+| `border-gray-200` | `dark:border-gray-700` |
+| `bg-blue-50` | `dark:bg-blue-900/30` |
+
+**적용 범위:** 전체 12개 파일 (설정 3개 + 컴포넌트 9개)
+
+**globals.css 추가 스타일:**
+- 다크 모드 스크롤바 (`#1e293b` 트랙, `#475569` 썸)
+- 다크 모드 슬라이더 트랙/썸
+- 다크 모드 `kbd` 스타일
+- 테마 전환 트랜지션 (`background-color 0.3s, color 0.3s`)
+
+### 7. 반응형 디자인 (모바일/태블릿) 🆕
+
+**브레이크포인트 전략:**
+- 모바일: `< 768px (md)` — 상단 드롭다운 메뉴
+- 데스크톱: `>= 768px (md)` — 기존 좌측 사이드바 유지
+
+**모바일 레이아웃 결정:**
+
+초기에 좌측 슬라이드 사이드바를 구현했으나, 모바일에서의 사용성을 고려하여 **상단 드롭다운** 방식으로 변경.
+
+- **변경 이유**: 좌측 슬라이드는 캔버스 위에 겹쳐지면서 도면 확인이 어려움. 상단 드롭다운은 헤더 아래에서 자연스럽게 펼쳐지며, 닫으면 완전히 사라짐
+- **드롭다운 하단 마감**: 그라데이션 페이드 + 핸들바로 스크롤 더 있음을 암시하고 자연스러운 마감 처리
+- **조건부 렌더링**: 닫혀있을 때 DOM에서 완전 제거 (`{sidebarOpen && (...)}`)하여 서브픽셀 렌더링 아티팩트 방지
+
+**핵심 정보 미니바:**
+
+메뉴를 펼치지 않아도 현재 상태를 확인할 수 있도록, 모바일 헤더 하단에 미니바 추가:
+- 현재 공종 (파란 뱃지)
+- 현재 리비전 (초록 뱃지)
+- 건물명
+
+**컴포넌트별 반응형 처리:**
+
+| 컴포넌트 | 모바일 | 데스크톱 |
+|---------|--------|---------|
+| App 사이드바 | 상단 드롭다운 (`max-h-[70vh]`) | 좌측 고정 (`w-72`) |
+| DrawingCanvas 줌 컨트롤 | `w-8 h-8` | `md:w-10 md:h-10` |
+| RevisionCompare 모달 | 풀스크린 (`w-full h-full`) | `md:w-[90vw] md:h-[90vh]` |
+| RevisionCompare side-by-side | 상하 배치 (`flex-col`) | 좌우 배치 (`md:flex-row`) |
+| Breadcrumb | `overflow-x-auto` 수평 스크롤 | 기본 |
+
+### 8. 모바일 터치 인터랙션 🆕
+
+**문제:**
+
+- 기존 캔버스는 마우스 이벤트만 처리하여 모바일에서 이미지 이동/줌이 불가능
+- 터치 이벤트의 `preventDefault()`로 브라우저 기본 동작 차단 필요
+- hotspot 클릭이 터치 드래그와 충돌하여 모바일에서 건물 선택 불가
+
+**해결:**
+
+1. **싱글 터치 팬**: `touchstart` → `touchmove`에서 좌표 차이만큼 viewport offset 이동
+2. **핀치 줌**: 두 손가락 거리 비율로 zoom 계산, 중심점 기준 줌
+3. **탭 vs 드래그 구분**: 터치 시작 시 위치/시간 기록, `touchend`에서 판별
+   - 이동 거리 8px 미만 + 300ms 이내 → **탭** → hotspot 클릭
+   - 이동 거리 8px 이상 또는 300ms 초과 → **드래그** → 캔버스 팬
+
+```typescript
+// 탭 판별 로직
+const handleTouchEnd = (e: TouchEvent) => {
+  if (
+    !touchMoved.current &&
+    e.changedTouches.length === 1 &&
+    Date.now() - touchStartTime.current < 300
+  ) {
+    handleTouchTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }
+};
+```
+
+**이벤트 등록:** `passive: false`로 등록하여 `preventDefault()` 동작 보장
+
+### 9. 캔버스 리사이즈 렌더링 버그 수정 🆕
+
+**문제:**
+
+Chrome DevTools에서 모바일 모드로 전환하거나 화면 캡처 시, 캔버스 이미지가 사라지고 드래그/클릭 시에만 다시 나타나는 현상.
+
+**원인 분석:**
+
+1. `resizeCanvas()`가 `canvas.width`/`canvas.height`를 설정하면 Canvas API 특성상 **캔버스 내용이 전부 삭제**됨
+2. `handleResize` → `resizeCanvas()` → `setCanvasSize()`로 스토어의 `canvasSize`만 업데이트
+3. 렌더링 useEffect의 의존성 배열에 `canvasSize`가 없어서 **재렌더링이 트리거되지 않음**
+4. 사용자가 드래그/클릭 → `viewport` 변경 → 렌더링 useEffect 실행 → 이미지 다시 나타남
+
+**해결:**
+
+로컬 `renderTrigger` 카운터 state를 도입하여 리사이즈 시 렌더링을 명시적으로 트리거.
+
+> **`canvasSize`를 의존성에 직접 넣지 않은 이유:** `canvasSize`는 Zustand 스토어의 객체로, 의존성에 추가하면 특정 기기(iPhone 12 Pro 등)에서 리사이즈 → 렌더링 → 레이아웃 재계산이 연쇄적으로 일어나며 서브픽셀 렌더링 아티팩트(왼쪽 하얀 줄)가 발생. 단순한 숫자 카운터는 이 부작용 없이 렌더링만 트리거.
+
+```typescript
+// 리사이즈 후 재렌더링 트리거
+const [renderTrigger, setRenderTrigger] = useState(0);
+
+const handleResize = () => {
+  const { width, height } = resizeCanvas(canvas);
+  setCanvasSize(width, height);
+  setRenderTrigger((prev) => prev + 1); // 렌더링 useEffect 재실행
+};
+
+// 렌더링 useEffect 의존성에 renderTrigger 추가
+useEffect(() => { /* render logic */ }, [
+  ..., renderTrigger
+]);
+```
+
 ### 시간이 더 주어진다면
 
 **단기 개선 (1주):**
 
 1. imageTransform relativeTo 체인 완전 구현
-2. 반응형 디자인 (모바일)
+2. ~~반응형 디자인 (모바일)~~ ✅ 완료
 3. 키보드 단축키 (화살표 이동, +/- 줌)
 
-**중기 개선 (1개월):** 4. 도면 검색 기능 5. 북마크/즐겨찾기 6. 다크 모드 7. 도면 인쇄/내보내기
+**중기 개선 (1개월):** 4. 도면 검색 기능 5. 북마크/즐겨찾기 6. ~~다크 모드~~ ✅ 완료 7. 도면 인쇄/내보내기
 
 **장기 개선:** 8. 주석/마크업 기능 9. 실시간 협업 (WebSocket) 10. WebGL 렌더링으로 성능 최적화
 
@@ -386,3 +511,7 @@ ctx.drawImage(img2, x, y, renderWidth, renderHeight);
 | 2025-02-12 | 초기 문서 작성, 데이터 구조 분석, 기본 기술 스택 결정 |
 | 2025-02-13 | 데이터 패턴 3가지 분류 추가, 핵심 라이브러리 선정 이유 표 추가, URL 라우팅 미적용 근거 작성 |
 | 2025-02-13 | 리비전 비교 시 이미지 scale 불일치 문제 해결 과정 추가 |
+| 2025-02-13 | 다크 모드 구현 (Tailwind dark: 클래스, localStorage 저장, OS 감지) |
+| 2025-02-13 | 반응형 디자인 (모바일 상단 드롭다운, 핵심 정보 미니바, 풀스크린 모달) |
+| 2025-02-13 | 터치 인터랙션 (싱글 터치 팬, 핀치 줌, 탭/드래그 구분 hotspot 클릭) |
+| 2025-02-13 | 캔버스 리사이즈 렌더링 버그 수정 (renderTrigger 카운터 패턴) |

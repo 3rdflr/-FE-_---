@@ -20,11 +20,22 @@ export const DrawingCanvas: React.FC = () => {
     baseImage: null,
   });
 
+  // 리사이즈 후 캔버스 재렌더링을 트리거하기 위한 카운터
+  const [renderTrigger, setRenderTrigger] = useState(0);
+
   // 드래그 상태를 state로 관리 (ref는 리렌더링을 트리거하지 않음)
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
   const isDraggingCanvas = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const currentDraggingLayerRef = useRef<string | null>(null);
+
+  // 터치 상태
+  const isTouching = useRef(false);
+  const lastTouchPos = useRef({ x: 0, y: 0 });
+  const lastPinchDist = useRef<number | null>(null);
+  const touchStartPos = useRef({ x: 0, y: 0 });
+  const touchStartTime = useRef(0);
+  const touchMoved = useRef(false);
 
   const {
     metadata,
@@ -64,6 +75,7 @@ export const DrawingCanvas: React.FC = () => {
     const handleResize = () => {
       const { width, height } = resizeCanvas(canvas);
       setCanvasSize(width, height);
+      setRenderTrigger((prev) => prev + 1);
     };
 
     window.addEventListener("resize", handleResize);
@@ -301,6 +313,161 @@ export const DrawingCanvas: React.FC = () => {
     ],
   );
 
+  // 터치 탭으로 hotspot 클릭 처리
+  const handleTouchTap = useCallback(
+    (x: number, y: number) => {
+      if (currentDrawingId !== "00" || !metadata || !renderState.baseImage) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const tapX = x - rect.left;
+      const tapY = y - rect.top;
+
+      const buildings = Object.values(metadata.drawings).filter(
+        (d) => d.parent === "00",
+      );
+
+      for (const building of buildings) {
+        if (!building.position?.vertices) continue;
+
+        const isInside = renderer?.isPointInHotspot(
+          tapX,
+          tapY,
+          building.position.vertices,
+          renderState.baseImageX,
+          renderState.baseImageY,
+          renderState.baseImageScale,
+          viewport.offsetX,
+          viewport.offsetY,
+          viewport.zoom,
+        );
+
+        if (isInside) {
+          selectDrawing(building.id);
+          return;
+        }
+      }
+    },
+    [currentDrawingId, metadata, renderState, viewport, renderer, selectDrawing],
+  );
+
+  // 터치 시작
+  const handleTouchStart = useCallback(
+    (e: TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1) {
+        // 싱글 터치 → 팬 (탭 판별용 시작 정보 기록)
+        isTouching.current = true;
+        touchMoved.current = false;
+        touchStartTime.current = Date.now();
+        lastPinchDist.current = null;
+        const pos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        lastTouchPos.current = pos;
+        touchStartPos.current = pos;
+      } else if (e.touches.length === 2) {
+        // 투 핑거 → 핀치 줌 준비 (탭 취소)
+        touchMoved.current = true;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
+        lastTouchPos.current = {
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        };
+      }
+    },
+    [],
+  );
+
+  // 터치 이동
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1 && isTouching.current && lastPinchDist.current === null) {
+        const dx = e.touches[0].clientX - lastTouchPos.current.x;
+        const dy = e.touches[0].clientY - lastTouchPos.current.y;
+
+        // 이동 거리가 8px 이상이면 드래그로 판정
+        const totalDx = e.touches[0].clientX - touchStartPos.current.x;
+        const totalDy = e.touches[0].clientY - touchStartPos.current.y;
+        if (Math.abs(totalDx) > 8 || Math.abs(totalDy) > 8) {
+          touchMoved.current = true;
+        }
+
+        setViewport({
+          offsetX: viewport.offsetX + dx,
+          offsetY: viewport.offsetY + dy,
+        });
+
+        lastTouchPos.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        };
+      } else if (e.touches.length === 2) {
+        touchMoved.current = true;
+        // 핀치 줌
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+        if (lastPinchDist.current !== null) {
+          const scale = dist / lastPinchDist.current;
+          const newZoom = Math.max(0.1, Math.min(10, viewport.zoom * scale));
+
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const rect = canvas.getBoundingClientRect();
+            const pinchX = midX - rect.left;
+            const pinchY = midY - rect.top;
+
+            const zoomChange = newZoom / viewport.zoom;
+            const newOffsetX = pinchX - (pinchX - viewport.offsetX) * zoomChange;
+            const newOffsetY = pinchY - (pinchY - viewport.offsetY) * zoomChange;
+
+            setViewport({
+              zoom: newZoom,
+              offsetX: newOffsetX,
+              offsetY: newOffsetY,
+            });
+          }
+        }
+
+        lastPinchDist.current = dist;
+        lastTouchPos.current = { x: midX, y: midY };
+      }
+    },
+    [viewport, setViewport],
+  );
+
+  // 터치 종료 - 탭 판별
+  const handleTouchEnd = useCallback(
+    (e: TouchEvent) => {
+      // 싱글 터치가 끝났고, 이동 없이 짧은 시간(300ms 이내)이면 탭으로 처리
+      if (
+        !touchMoved.current &&
+        e.changedTouches.length === 1 &&
+        Date.now() - touchStartTime.current < 300
+      ) {
+        handleTouchTap(
+          e.changedTouches[0].clientX,
+          e.changedTouches[0].clientY,
+        );
+      }
+
+      isTouching.current = false;
+      lastPinchDist.current = null;
+      touchMoved.current = false;
+    },
+    [handleTouchTap],
+  );
+
   // 이벤트 리스너 등록
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -314,12 +481,20 @@ export const DrawingCanvas: React.FC = () => {
     window.addEventListener("mouseup", handleMouseUp);
     canvas.addEventListener("click", handleClick);
 
+    // 터치 이벤트
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd);
+
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
       canvas.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
       canvas.removeEventListener("click", handleClick);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
     };
   }, [
     handleWheel,
@@ -327,6 +502,9 @@ export const DrawingCanvas: React.FC = () => {
     handleMouseMove,
     handleMouseUp,
     handleClick,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
   ]);
 
   // 렌더링
@@ -490,10 +668,11 @@ export const DrawingCanvas: React.FC = () => {
     hoveredBuilding,
     loadImage,
     selectedLayer,
+    renderTrigger,
   ]);
 
   return (
-    <div className="relative w-full h-full bg-gray-100">
+    <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900">
       <canvas
         ref={canvasRef}
         className="w-full h-full block"
@@ -501,14 +680,14 @@ export const DrawingCanvas: React.FC = () => {
       />
 
       {/* Zoom Controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-1 bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="absolute top-4 right-4 flex flex-col gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         <button
           onClick={zoomIn}
-          className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors border-b border-gray-200"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
           title="확대"
         >
           <svg
-            className="w-5 h-5"
+            className="w-4 h-4 md:w-5 md:h-5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -523,18 +702,18 @@ export const DrawingCanvas: React.FC = () => {
         </button>
         <button
           onClick={resetViewport}
-          className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors text-xs font-medium border-b border-gray-200"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-medium border-b border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
           title="100%로 리셋"
         >
           {Math.round(viewport.zoom * 100)}%
         </button>
         <button
           onClick={zoomOut}
-          className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           title="축소"
         >
           <svg
-            className="w-5 h-5"
+            className="w-4 h-4 md:w-5 md:h-5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -552,7 +731,7 @@ export const DrawingCanvas: React.FC = () => {
       {/* 레이어 드래그 안내 */}
       {selectedLayer && (
         <div
-          className={`absolute bottom-4 left-4 px-4 py-2 rounded-lg text-sm shadow-lg transition-colors ${
+          className={`absolute bottom-4 left-4 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm shadow-lg transition-colors ${
             isDraggingLayer
               ? "bg-green-500 text-white"
               : "bg-blue-500 text-white"
@@ -560,7 +739,7 @@ export const DrawingCanvas: React.FC = () => {
         >
           <span className="font-medium">{selectedLayer}</span>
           {isDraggingLayer ? (
-            <span className="ml-2">🔄 드래그 중...</span>
+            <span className="ml-2">드래그 중...</span>
           ) : (
             <span className="ml-2 opacity-80">
               <kbd className="px-1.5 py-0.5 bg-white/20 rounded text-xs">

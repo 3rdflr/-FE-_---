@@ -16,8 +16,8 @@ export const InfoPanel: React.FC = () => {
   if (!drawing) return null;
 
   return (
-    <div className="p-4 border-b border-gray-200">
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">도면 정보</h3>
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">도면 정보</h3>
 
       <div className="space-y-3">
         <InfoRow label="건물" value={drawing.name} />
@@ -40,15 +40,15 @@ export const InfoPanel: React.FC = () => {
             <InfoRow label="설명" value={revisionData.description} />
 
             {revisionData.changes.length > 0 && (
-              <div className="pt-2 border-t border-gray-100">
-                <div className="text-xs font-semibold text-gray-500 mb-2">
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-600">
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
                   변경 내역
                 </div>
                 <ul className="space-y-1">
                   {revisionData.changes.map((change, i) => (
                     <li
                       key={i}
-                      className="text-xs text-gray-600 flex items-start"
+                      className="text-xs text-gray-600 dark:text-gray-400 flex items-start"
                     >
                       <span className="text-blue-400 mr-1.5">•</span>
                       {change}
@@ -70,10 +70,10 @@ const InfoRow: React.FC<{
   highlight?: boolean;
 }> = ({ label, value, highlight }) => (
   <div>
-    <div className="text-xs font-medium text-gray-500 mb-0.5">{label}</div>
+    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">{label}</div>
     <div
       className={`text-sm ${
-        highlight ? "text-blue-600 font-semibold" : "text-gray-800"
+        highlight ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-gray-800 dark:text-gray-200"
       }`}
     >
       {value}
