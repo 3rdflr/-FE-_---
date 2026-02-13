@@ -12,9 +12,16 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
-/* 스크롤바 스타일링 */
+/* 테마 전환 트랜지션 */
+html.light,
+html.dark {
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* ===== 스크롤바 스타일링 ===== */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -33,7 +40,20 @@ body,
   background: #94a3b8;
 }
 
-/* 레인지 슬라이더 스타일 */
+/* 다크 모드 스크롤바 */
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ===== 레인지 슬라이더 스타일 ===== */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -62,7 +82,20 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: #2563eb;
 }
 
-/* 키보드 스타일 */
+/* 다크 모드 슬라이더 */
+.dark input[type="range"]::-webkit-slider-track {
+  background: #374151;
+}
+
+.dark input[type="range"]::-webkit-slider-thumb {
+  background: #60a5fa;
+}
+
+.dark input[type="range"]::-webkit-slider-thumb:hover {
+  background: #3b82f6;
+}
+
+/* ===== 키보드 스타일 ===== */
 kbd {
   font-family: ui-monospace, monospace;
   font-size: 0.75rem;
@@ -70,6 +103,12 @@ kbd {
   background: #e2e8f0;
   border: 1px solid #cbd5e1;
   border-radius: 0.25rem;
+}
+
+.dark kbd {
+  background: #374151;
+  border-color: #4b5563;
+  color: #d1d5db;
 }
 
 @layer utilities {
