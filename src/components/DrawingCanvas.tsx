@@ -1,10 +1,15 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { useDrawingStore } from "../store/useDrawingStore";
+import { useAnnotationStore } from "../store/useAnnotationStore";
 import { CanvasRenderer, resizeCanvas } from "../utils/canvasRenderer";
 import { useCanvasMouseEvents } from "../hooks/useCanvasMouseEvents";
 import { useCanvasTouchEvents } from "../hooks/useCanvasTouchEvents";
 import { useCanvasRenderer } from "../hooks/useCanvasRenderer";
+import { useAnnotations } from "../hooks/useAnnotations";
 import { ZoomControls } from "./ZoomControls";
+import { AnnotationToolbar } from "./AnnotationToolbar";
+import { ExportButton } from "./ExportButton";
+import { TextInputModal } from "./TextInputModal";
 
 interface RenderState {
   baseImageX: number;
@@ -32,6 +37,8 @@ export const DrawingCanvas: React.FC = () => {
     loadImage,
     layers,
     currentDrawingId,
+    currentDiscipline,
+    currentRevision,
     selectDrawing,
     viewport,
     setViewport,
@@ -43,6 +50,45 @@ export const DrawingCanvas: React.FC = () => {
     setLayerOffset,
     setDraggingLayer,
   } = useDrawingStore();
+
+  // 주석 스토어 - 모든 주석 가져오기
+  const allAnnotations = useAnnotationStore((state) => state.annotations);
+
+  // 현재 도면의 주석만 필터링 (메모이제이션)
+  const annotations = useMemo(() => {
+    if (!currentDrawingId) return [];
+    return allAnnotations.filter(
+      (ann) =>
+        ann.drawingId === currentDrawingId &&
+        ann.discipline === currentDiscipline &&
+        ann.revision === currentRevision,
+    );
+  }, [allAnnotations, currentDrawingId, currentDiscipline, currentRevision]);
+
+  // 주석 이벤트 핸들러
+  const {
+    isAnnotationMode,
+    currentTool,
+    handleAnnotationClick,
+    handleShapeStart,
+    handleShapeMove,
+    handleShapeEnd,
+    handleTouchAnnotationStart,
+    handleTouchAnnotationMove,
+    handleTouchAnnotationEnd,
+    handleTouchAnnotationTap,
+    previewShape,
+    isTextModalOpen,
+    textModalPosition,
+    handleTextSubmit,
+    handleTextModalClose,
+  } = useAnnotations({
+    canvasRef,
+    currentDrawingId,
+    currentDiscipline,
+    currentRevision,
+    viewport,
+  });
 
   // Canvas 초기화
   useEffect(() => {
@@ -101,6 +147,7 @@ export const DrawingCanvas: React.FC = () => {
       renderer,
       setViewport,
       selectDrawing,
+      onAnnotationTap: isAnnotationMode && currentTool === "text" ? handleTouchAnnotationTap : undefined,
     });
 
   // 이벤트 리스너 등록
@@ -108,25 +155,83 @@ export const DrawingCanvas: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.addEventListener("wheel", handleWheel, { passive: false });
-    canvas.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    canvas.addEventListener("click", handleClick);
+    // 통합 이벤트 핸들러
+    const handleCanvasMouseDown = (e: MouseEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleShapeStart(e);
+      } else {
+        handleMouseDown(e);
+      }
+    };
 
-    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
-    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
-    canvas.addEventListener("touchend", handleTouchEnd);
+    const handleCanvasMouseMove = (e: MouseEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleShapeMove(e);
+      } else {
+        handleMouseMove(e);
+      }
+    };
+
+    const handleCanvasMouseUp = (e: MouseEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleShapeEnd(e);
+      } else {
+        handleMouseUp();
+      }
+    };
+
+    const handleCanvasClick = (e: MouseEvent) => {
+      if (isAnnotationMode && currentTool === "text") {
+        handleAnnotationClick(e);
+      } else if (!isAnnotationMode) {
+        handleClick(e);
+      }
+    };
+
+    // 터치 이벤트 통합 핸들러
+    const handleCanvasTouchStart = (e: TouchEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleTouchAnnotationStart(e);
+      } else {
+        handleTouchStart(e);
+      }
+    };
+
+    const handleCanvasTouchMove = (e: TouchEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleTouchAnnotationMove(e);
+      } else {
+        handleTouchMove(e);
+      }
+    };
+
+    const handleCanvasTouchEnd = (e: TouchEvent) => {
+      if (isAnnotationMode && currentTool && currentTool !== "text") {
+        handleTouchAnnotationEnd(e);
+      } else {
+        handleTouchEnd(e);
+      }
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    canvas.addEventListener("mousedown", handleCanvasMouseDown);
+    window.addEventListener("mousemove", handleCanvasMouseMove);
+    window.addEventListener("mouseup", handleCanvasMouseUp);
+    canvas.addEventListener("click", handleCanvasClick);
+
+    canvas.addEventListener("touchstart", handleCanvasTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleCanvasTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleCanvasTouchEnd);
 
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
-      canvas.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-      canvas.removeEventListener("click", handleClick);
-      canvas.removeEventListener("touchstart", handleTouchStart);
-      canvas.removeEventListener("touchmove", handleTouchMove);
-      canvas.removeEventListener("touchend", handleTouchEnd);
+      canvas.removeEventListener("mousedown", handleCanvasMouseDown);
+      window.removeEventListener("mousemove", handleCanvasMouseMove);
+      window.removeEventListener("mouseup", handleCanvasMouseUp);
+      canvas.removeEventListener("click", handleCanvasClick);
+      canvas.removeEventListener("touchstart", handleCanvasTouchStart);
+      canvas.removeEventListener("touchmove", handleCanvasTouchMove);
+      canvas.removeEventListener("touchend", handleCanvasTouchEnd);
     };
   }, [
     handleWheel,
@@ -137,6 +242,15 @@ export const DrawingCanvas: React.FC = () => {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
+    isAnnotationMode,
+    currentTool,
+    handleAnnotationClick,
+    handleShapeStart,
+    handleShapeMove,
+    handleShapeEnd,
+    handleTouchAnnotationStart,
+    handleTouchAnnotationMove,
+    handleTouchAnnotationEnd,
   ]);
 
   // 렌더링
@@ -154,24 +268,46 @@ export const DrawingCanvas: React.FC = () => {
     getCurrentRevisionData,
     loadImage,
     setRenderState,
+    annotations,
+    previewShape,
   });
+
+  const drawing = getCurrentDrawing();
+  const filename = drawing
+    ? `${drawing.name}_${currentDiscipline || ""}_${currentRevision || ""}.png`
+    : "drawing.png";
 
   return (
     <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900">
       <canvas
         ref={canvasRef}
         className="w-full h-full block"
-        style={{ cursor: selectedLayer ? "crosshair" : "grab" }}
+        style={{
+          cursor: isAnnotationMode
+            ? currentTool === "text"
+              ? "text"
+              : "crosshair"
+            : selectedLayer
+              ? "crosshair"
+              : "grab",
+        }}
       />
 
-      <ZoomControls
-        zoom={viewport.zoom}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onReset={resetViewport}
-      />
+      {/* 주석 도구 바 */}
+      <AnnotationToolbar />
 
-      {selectedLayer && (
+      {/* 줌 컨트롤 & 내보내기 버튼 */}
+      <div className="absolute top-4 right-4 flex gap-2">
+        <ExportButton canvasRef={canvasRef} filename={filename} />
+        <ZoomControls
+          zoom={viewport.zoom}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onReset={resetViewport}
+        />
+      </div>
+
+      {selectedLayer && !isAnnotationMode && (
         <div
           className={`absolute bottom-4 left-4 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm shadow-lg transition-colors ${
             isDraggingLayer
@@ -192,6 +328,26 @@ export const DrawingCanvas: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* 주석 모드 안내 */}
+      {isAnnotationMode && currentTool && (
+        <div className="absolute bottom-4 left-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm shadow-lg">
+          <span className="font-medium">
+            {currentTool === "text" && "클릭하여 텍스트 추가"}
+            {currentTool === "arrow" && "드래그하여 화살표 그리기"}
+            {currentTool === "rectangle" && "드래그하여 사각형 그리기"}
+            {currentTool === "circle" && "드래그하여 원 그리기"}
+          </span>
+        </div>
+      )}
+
+      {/* 텍스트 입력 모달 */}
+      <TextInputModal
+        isOpen={isTextModalOpen}
+        onClose={handleTextModalClose}
+        onSubmit={handleTextSubmit}
+        position={textModalPosition}
+      />
     </div>
   );
 };

@@ -13,6 +13,7 @@ import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { DrawingCanvas } from "./components/DrawingCanvas";
 import { RevisionCompare } from "./components/RevisionCompare";
+import { AnnotationPanel } from "./components/AnnotationPanel";
 
 function App() {
   const {

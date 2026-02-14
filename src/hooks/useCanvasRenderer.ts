@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Metadata } from "../types/metadata";
 import { CanvasRenderer } from "../utils/canvasRenderer";
 import { Layer } from "../store/useDrawingStore";
+import type { Annotation } from "../types/annotation";
 
 interface RenderState {
   baseImageX: number;
@@ -24,6 +25,8 @@ interface UseCanvasRendererProps {
   getCurrentRevisionData: () => any;
   loadImage: (path: string) => Promise<HTMLImageElement>;
   setRenderState: (state: RenderState) => void;
+  annotations?: Annotation[];
+  previewShape?: { x: number; y: number; endX: number; endY: number; type: "arrow" | "rectangle" | "circle" } | null;
 }
 
 export const useCanvasRenderer = ({
@@ -40,6 +43,8 @@ export const useCanvasRenderer = ({
   getCurrentRevisionData,
   loadImage,
   setRenderState,
+  annotations = [],
+  previewShape = null,
 }: UseCanvasRendererProps) => {
   useEffect(() => {
     if (!renderer || !metadata) return;
@@ -168,6 +173,71 @@ export const useCanvasRenderer = ({
           }
         }
 
+        // 주석 렌더링
+        if (annotations.length > 0) {
+          for (const annotation of annotations) {
+            renderer.drawAnnotation(annotation);
+          }
+        }
+
+        // 미리보기 도형 그리기 (드래그 중)
+        if (previewShape) {
+          const ctx = renderer.getContext();
+          ctx.save();
+          ctx.strokeStyle = "#3b82f6";
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = 0.6;
+
+          const width = previewShape.endX - previewShape.x;
+          const height = previewShape.endY - previewShape.y;
+
+          if (previewShape.type === "rectangle") {
+            // 사각형: 점선
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.rect(previewShape.x, previewShape.y, width, height);
+            ctx.stroke();
+          } else if (previewShape.type === "circle") {
+            // 원: 실선 타원
+            const centerX = previewShape.x + width / 2;
+            const centerY = previewShape.y + height / 2;
+            const radiusX = Math.abs(width) / 2;
+            const radiusY = Math.abs(height) / 2;
+
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+            ctx.stroke();
+          } else if (previewShape.type === "arrow") {
+            // 화살표: 실선 화살표
+            ctx.beginPath();
+            ctx.moveTo(previewShape.x, previewShape.y);
+            ctx.lineTo(previewShape.endX, previewShape.endY);
+            ctx.stroke();
+
+            // 화살표 머리
+            const angle = Math.atan2(
+              previewShape.endY - previewShape.y,
+              previewShape.endX - previewShape.x
+            );
+            const headLength = 15;
+
+            ctx.beginPath();
+            ctx.moveTo(previewShape.endX, previewShape.endY);
+            ctx.lineTo(
+              previewShape.endX - headLength * Math.cos(angle - Math.PI / 6),
+              previewShape.endY - headLength * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.moveTo(previewShape.endX, previewShape.endY);
+            ctx.lineTo(
+              previewShape.endX - headLength * Math.cos(angle + Math.PI / 6),
+              previewShape.endY - headLength * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+
         renderer.resetViewport();
       } catch (error) {
         console.error("Failed to load base image:", baseImagePath, error);
@@ -190,5 +260,7 @@ export const useCanvasRenderer = ({
     renderTrigger,
     canvasRef,
     setRenderState,
+    annotations,
+    previewShape,
   ]);
 };

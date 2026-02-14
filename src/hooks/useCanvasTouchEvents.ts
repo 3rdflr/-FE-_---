@@ -18,6 +18,7 @@ interface UseCanvasTouchEventsProps {
   renderer: CanvasRenderer | null;
   setViewport: (viewport: Partial<{ zoom: number; offsetX: number; offsetY: number }>) => void;
   selectDrawing: (drawingId: string) => void;
+  onAnnotationTap?: (clientX: number, clientY: number) => void;
 }
 
 export const useCanvasTouchEvents = ({
@@ -29,6 +30,7 @@ export const useCanvasTouchEvents = ({
   renderer,
   setViewport,
   selectDrawing,
+  onAnnotationTap,
 }: UseCanvasTouchEventsProps) => {
   const isTouching = useRef(false);
   const lastTouchPos = useRef({ x: 0, y: 0 });
@@ -174,17 +176,25 @@ export const useCanvasTouchEvents = ({
         e.changedTouches.length === 1 &&
         Date.now() - touchStartTime.current < 300
       ) {
-        handleTouchTap(
-          e.changedTouches[0].clientX,
-          e.changedTouches[0].clientY,
-        );
+        // 주석 모드에서의 탭 처리
+        if (onAnnotationTap) {
+          onAnnotationTap(
+            e.changedTouches[0].clientX,
+            e.changedTouches[0].clientY,
+          );
+        } else {
+          handleTouchTap(
+            e.changedTouches[0].clientX,
+            e.changedTouches[0].clientY,
+          );
+        }
       }
 
       isTouching.current = false;
       lastPinchDist.current = null;
       touchMoved.current = false;
     },
-    [handleTouchTap],
+    [handleTouchTap, onAnnotationTap],
   );
 
   return {

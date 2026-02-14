@@ -4,6 +4,7 @@ import { DisciplineSelector } from "./DisciplineSelector";
 import { RevisionTimeline } from "./RevisionTimeline";
 import { LayerPanel } from "./LayerPanel";
 import { InfoPanel } from "./InfoPanel";
+import { AnnotationPanel } from "./AnnotationPanel";
 
 interface SidebarProps {
   isSiteMap: boolean;
@@ -26,6 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <DisciplineSelector />
           <RevisionTimeline />
           <LayerPanel />
+          <AnnotationPanel />
           <InfoPanel />
         </>
       )}

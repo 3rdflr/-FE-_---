@@ -5,6 +5,7 @@
  */
 
 import type { ImageTransform, Polygon } from "../types/metadata";
+import type { Annotation, TextAnnotationData, ArrowAnnotationData, ShapeAnnotationData } from "../types/annotation";
 
 /**
  * CanvasRenderer 클래스
@@ -296,6 +297,152 @@ export class CanvasRenderer {
    */
   getContext() {
     return this.ctx;
+  }
+
+  /**
+   * 주석 렌더링
+   * - 텍스트, 화살표, 도형 주석을 캔버스에 그림
+   */
+  drawAnnotation(annotation: Annotation) {
+    this.ctx.save();
+
+    switch (annotation.type) {
+      case "text":
+        this.drawTextAnnotation(annotation.x, annotation.y, annotation.data as TextAnnotationData);
+        break;
+      case "arrow":
+        this.drawArrowAnnotation(annotation.x, annotation.y, annotation.data as ArrowAnnotationData);
+        break;
+      case "rectangle":
+        this.drawRectangleAnnotation(annotation.x, annotation.y, annotation.data as ShapeAnnotationData);
+        break;
+      case "circle":
+        this.drawCircleAnnotation(annotation.x, annotation.y, annotation.data as ShapeAnnotationData);
+        break;
+    }
+
+    this.ctx.restore();
+  }
+
+  /**
+   * 텍스트 주석 그리기
+   */
+  private drawTextAnnotation(x: number, y: number, data: TextAnnotationData) {
+    this.ctx.font = `${data.fontSize}px sans-serif`;
+    this.ctx.textBaseline = "top";
+
+    // 배경색이 있으면 배경 그리기
+    if (data.backgroundColor) {
+      const metrics = this.ctx.measureText(data.text);
+      const padding = 4;
+      this.ctx.fillStyle = data.backgroundColor;
+      this.ctx.fillRect(
+        x - padding,
+        y - padding,
+        metrics.width + padding * 2,
+        data.fontSize + padding * 2
+      );
+    }
+
+    // 텍스트 그리기
+    this.ctx.fillStyle = data.color;
+    this.ctx.fillText(data.text, x, y);
+  }
+
+  /**
+   * 화살표 주석 그리기
+   */
+  private drawArrowAnnotation(x: number, y: number, data: ArrowAnnotationData) {
+    const { endX, endY, color, lineWidth, text } = data;
+
+    // 화살표 선 그리기
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(endX, endY);
+    this.ctx.stroke();
+
+    // 화살표 머리 그리기
+    const angle = Math.atan2(endY - y, endX - x);
+    const headLength = 15;
+
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.moveTo(endX, endY);
+    this.ctx.lineTo(
+      endX - headLength * Math.cos(angle - Math.PI / 6),
+      endY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    this.ctx.lineTo(
+      endX - headLength * Math.cos(angle + Math.PI / 6),
+      endY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    // 텍스트가 있으면 화살표 중간에 그리기
+    if (text) {
+      const midX = (x + endX) / 2;
+      const midY = (y + endY) / 2;
+      this.ctx.font = "14px sans-serif";
+      const metrics = this.ctx.measureText(text);
+      const padding = 4;
+
+      // 배경
+      this.ctx.fillStyle = "white";
+      this.ctx.fillRect(
+        midX - metrics.width / 2 - padding,
+        midY - 7 - padding,
+        metrics.width + padding * 2,
+        14 + padding * 2
+      );
+
+      // 텍스트
+      this.ctx.fillStyle = color;
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(text, midX, midY);
+    }
+  }
+
+  /**
+   * 사각형 주석 그리기
+   */
+  private drawRectangleAnnotation(x: number, y: number, data: ShapeAnnotationData) {
+    const { width, height, color, lineWidth, fill } = data;
+
+    if (fill) {
+      this.ctx.fillStyle = color + "40"; // 25% 투명도
+      this.ctx.fillRect(x, y, width, height);
+    }
+
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.strokeRect(x, y, width, height);
+  }
+
+  /**
+   * 원 주석 그리기
+   */
+  private drawCircleAnnotation(x: number, y: number, data: ShapeAnnotationData) {
+    const { width, height, color, lineWidth, fill } = data;
+    const radiusX = width / 2;
+    const radiusY = height / 2;
+    const centerX = x + radiusX;
+    const centerY = y + radiusY;
+
+    this.ctx.beginPath();
+    this.ctx.ellipse(centerX, centerY, Math.abs(radiusX), Math.abs(radiusY), 0, 0, 2 * Math.PI);
+
+    if (fill) {
+      this.ctx.fillStyle = color + "40"; // 25% 투명도
+      this.ctx.fill();
+    }
+
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.stroke();
   }
 }
 
