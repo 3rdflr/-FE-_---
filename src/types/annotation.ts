@@ -44,4 +44,4 @@ export interface ShapeAnnotationData {
   fill?: boolean;
 }
 
-export type AnnotationTool = AnnotationType | null;
+export type AnnotationTool = AnnotationType | "delete" | null;

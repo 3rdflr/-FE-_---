@@ -10,6 +10,7 @@ import { ZoomControls } from "./ZoomControls";
 import { AnnotationToolbar } from "./AnnotationToolbar";
 import { ExportButton } from "./ExportButton";
 import { TextInputModal } from "./TextInputModal";
+import { DeleteAnnotationModal } from "./DeleteAnnotationModal";
 
 interface RenderState {
   baseImageX: number;
@@ -77,11 +78,16 @@ export const DrawingCanvas: React.FC = () => {
     handleTouchAnnotationMove,
     handleTouchAnnotationEnd,
     handleTouchAnnotationTap,
+    handleAnnotationClickForDelete,
     previewShape,
     isTextModalOpen,
     textModalPosition,
     handleTextSubmit,
     handleTextModalClose,
+    isDeleteModalOpen,
+    annotationToDelete,
+    handleDeleteConfirm,
+    handleDeleteCancel,
   } = useAnnotations({
     canvasRef,
     currentDrawingId,
@@ -147,7 +153,11 @@ export const DrawingCanvas: React.FC = () => {
       renderer,
       setViewport,
       selectDrawing,
-      onAnnotationTap: isAnnotationMode && currentTool === "text" ? handleTouchAnnotationTap : undefined,
+      onAnnotationTap: isAnnotationMode && currentTool === "text"
+        ? handleTouchAnnotationTap
+        : isAnnotationMode && currentTool === "delete"
+        ? (clientX: number, clientY: number) => handleAnnotationClickForDelete(clientX, clientY, annotations)
+        : undefined,
     });
 
   // 이벤트 리스너 등록
@@ -183,6 +193,8 @@ export const DrawingCanvas: React.FC = () => {
     const handleCanvasClick = (e: MouseEvent) => {
       if (isAnnotationMode && currentTool === "text") {
         handleAnnotationClick(e);
+      } else if (isAnnotationMode && currentTool === "delete") {
+        handleAnnotationClickForDelete(e.clientX, e.clientY, annotations);
       } else if (!isAnnotationMode) {
         handleClick(e);
       }
@@ -251,6 +263,8 @@ export const DrawingCanvas: React.FC = () => {
     handleTouchAnnotationStart,
     handleTouchAnnotationMove,
     handleTouchAnnotationEnd,
+    handleAnnotationClickForDelete,
+    annotations,
   ]);
 
   // 렌더링
@@ -286,6 +300,8 @@ export const DrawingCanvas: React.FC = () => {
           cursor: isAnnotationMode
             ? currentTool === "text"
               ? "text"
+              : currentTool === "delete"
+              ? "pointer"
               : "crosshair"
             : selectedLayer
               ? "crosshair"
@@ -331,12 +347,17 @@ export const DrawingCanvas: React.FC = () => {
 
       {/* 주석 모드 안내 */}
       {isAnnotationMode && currentTool && (
-        <div className="absolute bottom-4 left-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm shadow-lg">
+        <div className={`absolute bottom-4 left-4 px-4 py-2 rounded-lg text-sm shadow-lg ${
+          currentTool === "delete"
+            ? "bg-red-500 text-white"
+            : "bg-blue-500 text-white"
+        }`}>
           <span className="font-medium">
             {currentTool === "text" && "클릭하여 텍스트 추가"}
             {currentTool === "arrow" && "드래그하여 화살표 그리기"}
             {currentTool === "rectangle" && "드래그하여 사각형 그리기"}
             {currentTool === "circle" && "드래그하여 원 그리기"}
+            {currentTool === "delete" && "삭제할 주석을 클릭하세요"}
           </span>
         </div>
       )}
@@ -347,6 +368,14 @@ export const DrawingCanvas: React.FC = () => {
         onClose={handleTextModalClose}
         onSubmit={handleTextSubmit}
         position={textModalPosition}
+      />
+
+      {/* 주석 삭제 확인 모달 */}
+      <DeleteAnnotationModal
+        isOpen={isDeleteModalOpen}
+        annotation={annotationToDelete ? annotations.find(a => a.id === annotationToDelete) || null : null}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
       />
     </div>
   );
