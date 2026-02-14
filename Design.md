@@ -567,6 +567,435 @@ src/
 - 애니메이션 → `useCanvasAnimation` 훅 추가
 - 멀티 캔버스 → 기존 훅 재사용
 
+---
+
+### 11. 주석/마크업 기능 구현 🆕
+
+**요구사항:**
+
+도면을 직접 수정하지 않고 **수정사항을 빠르게 전달**할 수 있는 주석 기능 필요.
+- 폰트 크기, 색상 커스터마이징
+- 주석을 포함하여 도면 인쇄/내보내기
+
+**구현 범위:**
+
+1. **4가지 주석 타입**
+   - 📝 **텍스트**: 메모 추가
+   - ➡️ **화살표**: 특정 부분 지시
+   - ⬜ **사각형**: 영역 표시
+   - ⭕ **원**: 영역 강조
+
+2. **커스터마이징 옵션**
+   - 색상: 6가지 (빨강/파랑/초록/주황/보라/검정)
+   - 텍스트 크기: 12-20px (5단계)
+   - 선 굵기: 2-5px (4단계)
+   - 도형 채우기: ON/OFF
+
+3. **주석 관리**
+   - 사이드바에서 주석 목록 확인
+   - 주석 선택/삭제
+   - 도면/공종/리비전별 자동 필터링
+
+4. **내보내기/인쇄**
+   - PNG 이미지로 저장 (주석 포함)
+   - 인쇄 기능 (새 창)
+
+**기술 구현:**
+
+```
+src/
+├── types/
+│   └── annotation.ts              # 주석 데이터 타입
+├── store/
+│   └── useAnnotationStore.ts      # Zustand 주석 상태 관리
+├── hooks/
+│   └── useAnnotations.ts          # 주석 이벤트 핸들링
+├── utils/
+│   ├── canvasRenderer.ts          # 주석 렌더링 메서드 추가
+│   └── exportCanvas.ts            # PNG 저장/인쇄
+└── components/
+    ├── AnnotationToolbar.tsx      # 주석 도구 바 UI
+    ├── AnnotationPanel.tsx        # 주석 목록 패널
+    ├── ExportButton.tsx           # 내보내기 버튼
+    └── TextInputModal.tsx         # 텍스트 입력 모달
+```
+
+**핵심 설계 결정:**
+
+1. **도면별 주석 저장**
+   - 각 주석은 `drawingId`, `discipline`, `revision`과 연결
+   - 도면 전환 시 해당 도면의 주석만 렌더링 (자동 필터링)
+
+2. **좌표 변환**
+   - 주석은 캔버스 실제 좌표로 저장 (viewport 무관)
+   - 렌더링 시 viewport 적용하여 줌/팬 영향받음
+
+3. **데이터 구조**
+```typescript
+interface Annotation {
+  id: string;
+  type: "text" | "arrow" | "rectangle" | "circle";
+  drawingId: string;
+  discipline: string | null;
+  revision: string | null;
+  x: number;                  // 실제 좌표
+  y: number;
+  data: AnnotationData;       // 타입별 데이터
+  createdAt: number;
+  updatedAt: number;
+}
+```
+
+**현재 제한사항:**
+
+- 주석은 메모리에만 저장 (새로고침 시 삭제)
+- 주석 편집 불가 (위치 이동, 크기 조정)
+- 협업 기능 없음 (사용자별 구분)
+- Undo/Redo 기능 없음
+
+**향후 개선 방향:**
+
+- LocalStorage 또는 서버 API 연동으로 영구 저장
+- 주석 편집 (드래그로 이동, 크기 조정)
+- Undo/Redo 기능
+- 주석 JSON 가져오기/내보내기
+- 실시간 협업 (WebSocket)
+
+---
+
+### 12. 브라우저 멈춤 버그 수정 - 무한 루프 방지 🆕
+
+**문제:**
+
+주석 기능 추가 후 로컬 서버 시작 시 **화면 + 크롬 브라우저 전체가 멈춰버리는** 심각한 버그 발생.
+
+**원인 분석:**
+
+무한 렌더링 루프로 인한 브라우저 크래시.
+
+1. **불안정한 함수 참조**
+   - `viewport`, `settings` 등이 변경될 때마다 이벤트 핸들러가 재생성됨
+   - `DrawingCanvas.tsx`의 useEffect가 핸들러 재생성을 감지하여 트리거
+   - 이벤트 리스너 재등록 → 리렌더 → 핸들러 재생성 → 반복
+
+2. **주석 필터링 최적화 부족**
+   - `getAnnotationsForCurrentDrawing` 함수가 매 렌더마다 새로 생성
+   - 결과 배열도 매번 새로운 참조 → 불필요한 리렌더링
+
+3. **상태 의존성 문제**
+   - `isDrawing` 같은 state가 useCallback 의존성에 포함
+   - 상태 변경 → 콜백 재생성 → useEffect 트리거 → 무한 루프
+
+**해결 방법:**
+
+1. **useRef로 안정적인 참조 유지**
+
+```typescript
+// Before: 의존성에 포함 → 변경 시 콜백 재생성
+const handleShapeMove = useCallback(
+  (e: MouseEvent) => {
+    if (!isDrawing || !viewport) return;
+    // ...
+  },
+  [isDrawing, viewport] // ← 문제!
+);
+
+// After: ref로 최신 값 유지
+const viewportRef = useRef(viewport);
+const isDrawingRef = useRef(false);
+
+useEffect(() => {
+  viewportRef.current = viewport;
+}, [viewport]);
+
+const handleShapeMove = useCallback(
+  (e: MouseEvent) => {
+    if (!isDrawingRef.current) return;
+    // viewportRef.current 사용
+  },
+  [] // ← 의존성 최소화!
+);
+```
+
+2. **주석 필터링 메모이제이션**
+
+```typescript
+// Before: 매 렌더마다 새 배열 생성
+const { getAnnotationsForCurrentDrawing } = useAnnotationStore();
+const annotations = currentDrawingId
+  ? getAnnotationsForCurrentDrawing(currentDrawingId, ...)
+  : [];
+
+// After: useMemo로 최적화
+const allAnnotations = useAnnotationStore((state) => state.annotations);
+
+const annotations = useMemo(() => {
+  if (!currentDrawingId) return [];
+  return allAnnotations.filter(/* ... */);
+}, [allAnnotations, currentDrawingId, currentDiscipline, currentRevision]);
+```
+
+3. **isDrawing 상태를 ref로 변경**
+
+```typescript
+// Before
+const [isDrawing, setIsDrawing] = useState(false);
+// → useCallback 의존성에 포함 → 재생성
+
+// After
+const isDrawingRef = useRef(false);
+// → useCallback 의존성에서 제외 → 안정적
+```
+
+**적용 파일:**
+
+- `src/hooks/useAnnotations.ts`: 9개 ref 추가, 콜백 의존성 최소화
+- `src/components/DrawingCanvas.tsx`: useMemo로 주석 필터링 최적화
+- `src/hooks/useCanvasRenderer.ts`: previewShape 타입 업데이트
+
+**결과:**
+
+- ✅ 브라우저 멈춤 현상 완전 해결
+- ✅ viewport/settings 변경 시에도 핸들러 재생성 없음
+- ✅ 주석 기능 정상 동작
+- ✅ 성능 대폭 향상 (불필요한 리렌더링 제거)
+
+**교훈:**
+
+1. **useCallback 의존성 관리의 중요성**
+   - 자주 변경되는 값은 ref로 관리
+   - 의존성 배열은 최소화
+   - 함수 참조 안정성 유지
+
+2. **useEffect + 이벤트 리스너 조합의 위험성**
+   - 핸들러 함수를 의존성에 포함할 때 주의
+   - 무한 루프 발생 가능성 항상 염두
+
+3. **Zustand selector 최적화**
+   - 렌더링 중 selector 함수 호출 지양
+   - useMemo로 결과 메모이제이션
+
+---
+
+### 13. 주석 UX 개선 - 실시간 미리보기 & 인라인 모달 🆕
+
+**개선 1: 실시간 도형 미리보기**
+
+**문제:**
+
+- 원/화살표 드래그 시 점선 사각형(- - - -)으로 표시되어 어색함
+- 실제로 그려질 도형을 예측하기 어려움
+
+**해결:**
+
+도형 타입에 따라 실제 모양으로 미리보기 표시.
+
+| 도형 타입 | 이전 | 개선 후 |
+|---------|------|---------|
+| 사각형 | 점선 사각형 | ✅ 점선 사각형 (유지) |
+| 원 | 점선 사각형 ❌ | ✅ 실선 타원 |
+| 화살표 | 점선 사각형 ❌ | ✅ 실선 화살표 (머리 포함) |
+
+```typescript
+// 미리보기 도형 렌더링
+if (previewShape.type === "circle") {
+  // 원: 실선 타원
+  ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+} else if (previewShape.type === "arrow") {
+  // 화살표: 실선 + 화살표 머리
+  ctx.moveTo(previewShape.x, previewShape.y);
+  ctx.lineTo(previewShape.endX, previewShape.endY);
+  // 화살표 머리 그리기 (30도 각도)
+}
+```
+
+**효과:**
+- 드래그 중 실제 결과물을 정확하게 확인 가능
+- 화살표 방향, 원 크기를 실시간으로 조정하기 쉬움
+- 더 자연스러운 UX
+
+**개선 2: 인라인 텍스트 입력 모달**
+
+**문제:**
+
+- `prompt()` alert 창 사용
+- 브라우저 기본 디자인으로 앱 스타일과 불일치
+- 다크모드 미지원
+- 멀티라인 입력 불편
+
+**해결:**
+
+깔끔한 커스텀 인라인 모달 구현.
+
+**새로 생성된 컴포넌트:**
+- `src/components/TextInputModal.tsx`
+
+**기능:**
+- 클릭한 위치 근처에 모달 표시
+- 앱 디자인과 통일된 스타일
+- 다크모드 완벽 지원
+- 멀티라인 textarea
+- 키보드 단축키
+  - `Ctrl+Enter`: 저장
+  - `Esc`: 취소
+- 배경 오버레이로 포커스 유도
+
+**구현:**
+
+```typescript
+// 텍스트 클릭 시 모달 표시
+const handleAnnotationClick = useCallback((e: MouseEvent) => {
+  if (currentToolRef.current === "text") {
+    setTextModalPosition({ x: e.clientX + 10, y: e.clientY + 10 });
+    pendingTextPosition.current = { x, y };
+    setIsTextModalOpen(true);
+  }
+}, [canvasToRealCoords]);
+```
+
+**효과:**
+- 일관된 사용자 경험
+- 멀티라인 메모 작성 용이
+- 키보드만으로 빠른 입력 가능
+- 모바일에서도 깔끔하게 동작
+
+**적용 파일:**
+
+- `src/components/TextInputModal.tsx` (신규)
+- `src/hooks/useAnnotations.ts`: 모달 상태 관리 추가
+- `src/components/DrawingCanvas.tsx`: TextInputModal 통합
+- `src/hooks/useCanvasRenderer.ts`: previewShape 타입 확장
+
+**문서:**
+- `ANNOTATION_UX_IMPROVEMENTS.md`: 상세 개선 내역
+
+---
+
+### 14. 모바일 주석 기능 개선 - 터치 이벤트 & UI 최적화 🆕
+
+**문제 1: 모바일에서 주석 기능 미작동**
+
+터치 이벤트가 전혀 처리되지 않아 모바일에서 주석 기능을 사용할 수 없었음.
+
+- 화살표/사각형/원 그리기 불가
+- 텍스트 주석 탭 이벤트 미작동
+- 마우스 이벤트만 처리하는 구조
+
+**문제 2: 모바일 UI 공간 낭비**
+
+AnnotationToolbar가 화면의 ~40%를 차지하여 도면 확인 불편.
+
+- 세로로 긴 레이아웃 (도구 4개 세로 배치)
+- 설정이 항상 표시되어 공간 낭비
+- 도면 작업 영역 부족
+
+**해결 1: 터치 이벤트 전면 지원**
+
+**추가된 핸들러 (4개):**
+
+```typescript
+// useAnnotations.ts
+- handleTouchAnnotationStart  // 터치 시작 (도형 그리기)
+- handleTouchAnnotationMove   // 터치 이동 (실시간 미리보기)
+- handleTouchAnnotationEnd    // 터치 종료 (도형 완성)
+- handleTouchAnnotationTap    // 터치 탭 (텍스트 주석)
+```
+
+**통합 방식:**
+
+```typescript
+// DrawingCanvas.tsx - 터치 이벤트 분기
+const handleCanvasTouchStart = (e: TouchEvent) => {
+  if (isAnnotationMode && currentTool && currentTool !== "text") {
+    handleTouchAnnotationStart(e);  // 주석 모드
+  } else {
+    handleTouchStart(e);            // 일반 모드 (팬/줌)
+  }
+};
+```
+
+**해결 2: 컴팩트한 모바일 UI**
+
+**Before (문제):**
+```
+┌─────────────────────┐
+│ [주석 모드 ON]       │
+├─────────────────────┤
+│ [📝 텍스트]          │  ← 세로 배치
+│ [➡️ 화살표]          │
+│ [⬜ 사각형]          │
+│ [⭕ 원]              │
+├─────────────────────┤
+│ 색상: [6개]         │  ← 항상 표시
+│ 크기: [5개]         │
+│ ...                 │
+└─────────────────────┘
+```
+
+**After (개선):**
+```
+┌─────────────────────┐
+│ [주석 모드 ON]       │
+├─────────────────────┤
+│[📝][➡️][⬜][⭕]      │  ← 가로 배치 (50x55px 고정)
+├─────────────────────┤
+│   설정 열기 ▼        │  ← 접기/펼치기
+└─────────────────────┘
+
+설정 펼침:
+┌─────────────────────┐
+│ [주석 모드 ON]       │
+├─────────────────────┤
+│[📝][➡️][⬜][⭕]      │
+├─────────────────────┤
+│   설정 닫기 ▲        │
+├─────────────────────┤
+│ 색상: [6개]         │  ← 필요시에만 표시
+│ 크기: [5개]         │
+└─────────────────────┘
+```
+
+**개선 효과:**
+
+| 항목 | Before | After | 개선 |
+|-----|--------|-------|------|
+| 기본 높이 | ~400px | ~120px | **70% ↓** |
+| 도구 레이아웃 | 세로 4줄 | 가로 1줄 (50×55px 고정) | **75% ↓** |
+| 화면 점유율 | ~40% | ~15% | **62% ↓** |
+| 설정 표시 | 항상 | 필요시 | 공간 절약 |
+
+**해결 3: 텍스트 입력 모달 중앙 고정**
+
+**문제:**
+- 클릭 위치 근처에 모달 표시 (`clientX + 10, clientY + 10`)
+- 화면 가장자리 클릭 시 모달이 화면 밖으로 벗어남
+
+**해결:**
+
+```typescript
+// TextInputModal.tsx
+// Before: 위치 기반
+<div style={{ left: `${position.x}px`, top: `${position.y}px` }}>
+
+// After: 화면 중앙 고정
+<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+```
+
+모바일/데스크톱 모두 화면 중앙에 모달이 표시되어 접근성 향상.
+
+**적용 파일:**
+
+- `src/hooks/useAnnotations.ts`: 터치 핸들러 4개 추가
+- `src/hooks/useCanvasTouchEvents.ts`: `onAnnotationTap` 콜백 추가
+- `src/components/DrawingCanvas.tsx`: 터치 이벤트 통합
+- `src/components/AnnotationToolbar.tsx`: 모바일 컴팩트 UI (50×55px 버튼)
+- `src/components/TextInputModal.tsx`: 중앙 고정 위치
+
+**문서:**
+- `MOBILE_ANNOTATION_FIX.md`: 상세 개선 내역
+
+---
+
 ### 시간이 더 주어진다면
 
 **단기 개선 (1주):**
@@ -583,7 +1012,7 @@ src/
 8. ~~코드 리팩토링~~ ✅ 완료
 
 **장기 개선:**
-9. 주석/마크업 기능
+9. ~~주석/마크업 기능~~ ✅ 완료
 10. 실시간 협업 (WebSocket)
 11. WebGL 렌더링으로 성능 최적화
 12. 유닛 테스트 및 E2E 테스트 추가
@@ -602,3 +1031,7 @@ src/
 | 2025-02-13 | 터치 인터랙션 (싱글 터치 팬, 핀치 줌, 탭/드래그 구분 hotspot 클릭) |
 | 2025-02-13 | 캔버스 리사이즈 렌더링 버그 수정 (renderTrigger 카운터 패턴) |
 | 2025-02-14 | 대규모 코드 리팩토링 (5개 커스텀 훅, 3개 컴포넌트 분리, 코드 68-74% 감소) |
+| 2025-02-14 | 주석/마크업 기능 구현 (4가지 타입, 컬러/크기 커스터마이징, 내보내기/인쇄) |
+| 2025-02-14 | 브라우저 멈춤 버그 수정 (무한 루프 방지, useRef 최적화) |
+| 2025-02-14 | 주석 UX 개선 (실시간 도형 미리보기, 인라인 텍스트 입력 모달) |
+| 2025-02-14 | 모바일 주석 기능 완전 지원 (터치 이벤트 4개 추가, 컴팩트 UI, 중앙 모달) |

@@ -16,8 +16,11 @@ interface UseCanvasTouchEventsProps {
   metadata: Metadata | null;
   renderState: RenderState;
   renderer: CanvasRenderer | null;
-  setViewport: (viewport: Partial<{ zoom: number; offsetX: number; offsetY: number }>) => void;
+  setViewport: (
+    viewport: Partial<{ zoom: number; offsetX: number; offsetY: number }>,
+  ) => void;
   selectDrawing: (drawingId: string) => void;
+  onAnnotationTap?: (clientX: number, clientY: number) => void;
 }
 
 export const useCanvasTouchEvents = ({
@@ -29,6 +32,7 @@ export const useCanvasTouchEvents = ({
   renderer,
   setViewport,
   selectDrawing,
+  onAnnotationTap,
 }: UseCanvasTouchEventsProps) => {
   const isTouching = useRef(false);
   const lastTouchPos = useRef({ x: 0, y: 0 });
@@ -40,7 +44,8 @@ export const useCanvasTouchEvents = ({
   // 터치 탭으로 hotspot 클릭 처리
   const handleTouchTap = useCallback(
     (x: number, y: number) => {
-      if (currentDrawingId !== "00" || !metadata || !renderState.baseImage) return;
+      if (currentDrawingId !== "00" || !metadata || !renderState.baseImage)
+        return;
 
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -74,42 +79,51 @@ export const useCanvasTouchEvents = ({
         }
       }
     },
-    [currentDrawingId, metadata, renderState, viewport, renderer, selectDrawing, canvasRef],
+    [
+      currentDrawingId,
+      metadata,
+      renderState,
+      viewport,
+      renderer,
+      selectDrawing,
+      canvasRef,
+    ],
   );
 
   // 터치 시작
-  const handleTouchStart = useCallback(
-    (e: TouchEvent) => {
-      e.preventDefault();
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    e.preventDefault();
 
-      if (e.touches.length === 1) {
-        isTouching.current = true;
-        touchMoved.current = false;
-        touchStartTime.current = Date.now();
-        lastPinchDist.current = null;
-        const pos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        lastTouchPos.current = pos;
-        touchStartPos.current = pos;
-      } else if (e.touches.length === 2) {
-        touchMoved.current = true;
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
-        lastTouchPos.current = {
-          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-        };
-      }
-    },
-    [],
-  );
+    if (e.touches.length === 1) {
+      isTouching.current = true;
+      touchMoved.current = false;
+      touchStartTime.current = Date.now();
+      lastPinchDist.current = null;
+      const pos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTouchPos.current = pos;
+      touchStartPos.current = pos;
+    } else if (e.touches.length === 2) {
+      touchMoved.current = true;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
+      lastTouchPos.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      };
+    }
+  }, []);
 
   // 터치 이동
   const handleTouchMove = useCallback(
     (e: TouchEvent) => {
       e.preventDefault();
 
-      if (e.touches.length === 1 && isTouching.current && lastPinchDist.current === null) {
+      if (
+        e.touches.length === 1 &&
+        isTouching.current &&
+        lastPinchDist.current === null
+      ) {
         const dx = e.touches[0].clientX - lastTouchPos.current.x;
         const dy = e.touches[0].clientY - lastTouchPos.current.y;
 
@@ -148,8 +162,10 @@ export const useCanvasTouchEvents = ({
             const pinchY = midY - rect.top;
 
             const zoomChange = newZoom / viewport.zoom;
-            const newOffsetX = pinchX - (pinchX - viewport.offsetX) * zoomChange;
-            const newOffsetY = pinchY - (pinchY - viewport.offsetY) * zoomChange;
+            const newOffsetX =
+              pinchX - (pinchX - viewport.offsetX) * zoomChange;
+            const newOffsetY =
+              pinchY - (pinchY - viewport.offsetY) * zoomChange;
 
             setViewport({
               zoom: newZoom,
@@ -174,17 +190,25 @@ export const useCanvasTouchEvents = ({
         e.changedTouches.length === 1 &&
         Date.now() - touchStartTime.current < 300
       ) {
-        handleTouchTap(
-          e.changedTouches[0].clientX,
-          e.changedTouches[0].clientY,
-        );
+        // 주석 모드에서의 탭 처리
+        if (onAnnotationTap) {
+          onAnnotationTap(
+            e.changedTouches[0].clientX,
+            e.changedTouches[0].clientY,
+          );
+        } else {
+          handleTouchTap(
+            e.changedTouches[0].clientX,
+            e.changedTouches[0].clientY,
+          );
+        }
       }
 
       isTouching.current = false;
       lastPinchDist.current = null;
       touchMoved.current = false;
     },
-    [handleTouchTap],
+    [handleTouchTap, onAnnotationTap],
   );
 
   return {
